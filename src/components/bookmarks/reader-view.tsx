@@ -96,10 +96,20 @@ export function ReaderView({ bookmark, highlights }: ReaderViewProps) {
     }
   }
 
+  const readerThemeClass =
+    settings.theme === "dark"
+      ? "dark"
+      : settings.theme === "sepia"
+        ? "sepia-theme"
+        : "";
+
   if (!loaded) return null;
 
   return (
-    <div className="min-h-screen transition-colors" style={cssVars}>
+    <div
+      className={`min-h-screen transition-colors ${readerThemeClass}`}
+      style={cssVars}
+    >
       <ReadingProgressBar />
 
       <div className="mx-auto max-w-3xl px-4 py-8">

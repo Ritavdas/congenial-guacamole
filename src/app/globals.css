@@ -136,6 +136,7 @@
   font-size: var(--reader-font-size, 18px);
   font-family: var(--reader-font-family, inherit);
   line-height: var(--reader-line-height, 1.7);
+  color: inherit;
 }
 
 .article-content img {
@@ -150,4 +151,12 @@
 .article-content pre {
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Sepia theme overrides for reader */
+.sepia-theme .prose {
+  --tw-prose-body: var(--reader-fg, currentColor);
+  --tw-prose-headings: var(--reader-fg, currentColor);
+  --tw-prose-bold: var(--reader-fg, currentColor);
+  --tw-prose-quotes: var(--reader-fg, currentColor);
 }

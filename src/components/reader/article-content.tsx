@@ -37,9 +37,13 @@ export function ArticleContent({ htmlContent, className }: ArticleContentProps) 
     <div
       className={`article-content prose prose-neutral dark:prose-invert max-w-none
         prose-headings:font-bold prose-headings:tracking-tight
+        prose-headings:text-[inherit]
+        prose-p:text-[inherit]
+        prose-li:text-[inherit]
+        prose-strong:text-[inherit]
         prose-a:text-primary prose-a:underline prose-a:underline-offset-2
         prose-img:rounded-lg prose-img:mx-auto
-        prose-blockquote:border-l-primary/50 prose-blockquote:not-italic
+        prose-blockquote:border-l-primary/50 prose-blockquote:not-italic prose-blockquote:text-[inherit]/70
         prose-pre:bg-muted prose-pre:text-foreground
         prose-code:before:content-none prose-code:after:content-none
         ${className ?? ""}`}
