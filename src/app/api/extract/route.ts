@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { extractMetadata } from "@/lib/extract";
+import { extractSchema } from "@/lib/validators";
 
 export async function POST(request: NextRequest) {
   const { userId } = await auth();
@@ -8,11 +9,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { url } = await request.json();
-
-  if (!url) {
-    return NextResponse.json({ error: "URL is required" }, { status: 400 });
+  const body = await request.json();
+  const parsed = extractSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid input", details: parsed.error.issues },
+      { status: 400 }
+    );
   }
+
+  const { url } = parsed.data;
 
   try {
     const metadata = await extractMetadata(url);

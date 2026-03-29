@@ -1,6 +1,7 @@
 import { JSDOM } from "jsdom";
 import { Readability } from "@mozilla/readability";
 import { isTwitterStatusUrl, extractTwitterMetadata } from "./extract-twitter";
+import { isAllowedUrl } from "./url-safety";
 
 export interface ExtractedMetadata {
   title: string | null;
@@ -13,6 +14,10 @@ export interface ExtractedMetadata {
 }
 
 export async function extractMetadata(url: string): Promise<ExtractedMetadata> {
+  if (!isAllowedUrl(url)) {
+    throw new Error("URL is not allowed: blocked host or private network");
+  }
+
   const domain = new URL(url).hostname.replace("www.", "");
 
   // Twitter/X pages render OG tags via JS — use the syndication API instead
@@ -25,7 +30,7 @@ export async function extractMetadata(url: string): Promise<ExtractedMetadata> {
     const response = await fetch(url, {
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (compatible; PocketClone/1.0; +https://pocketclone.app)",
+          "Mozilla/5.0 (compatible; Pockaa/1.0; +https://pockaa.app)",
       },
       signal: AbortSignal.timeout(10000),
     });

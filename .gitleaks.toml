@@ -1,0 +1,14 @@
+title = "Pockaa Gitleaks Config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allowlisted files and patterns"
+paths = [
+  '''\.env\.local\.example$''',
+  '''README\.md$''',
+  '''node_modules/''',
+  '''\.next/''',
+  '''package-lock\.json$''',
+]

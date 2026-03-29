@@ -2,6 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { bookmarks } from "@/db/schema";
 import { extractMetadata } from "@/lib/extract";
+import { extensionSaveSchema } from "@/lib/validators";
+import { timingSafeEqual } from "crypto";
+
+function safeTokenCompare(a: string, b: string): boolean {
+  try {
+    const bufA = Buffer.from(a);
+    const bufB = Buffer.from(b);
+    if (bufA.length !== bufB.length) return false;
+    return timingSafeEqual(bufA, bufB);
+  } catch {
+    return false;
+  }
+}
 
 export async function POST(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
@@ -10,23 +23,21 @@ export async function POST(request: NextRequest) {
   }
 
   const token = authHeader.slice(7);
-
-  // Verify Clerk session token
-  // In production, validate this token with Clerk's API
-  // For now, we accept a pre-shared API key set in env
   const extensionApiKey = process.env.EXTENSION_API_KEY;
-  if (!extensionApiKey || token !== extensionApiKey) {
+  if (!extensionApiKey || !safeTokenCompare(token, extensionApiKey)) {
     return NextResponse.json({ error: "Invalid token" }, { status: 401 });
   }
 
-  const { url, userId } = await request.json();
-
-  if (!url || !userId) {
+  const body = await request.json();
+  const parsed = extensionSaveSchema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "url and userId are required" },
+      { error: "Invalid input", details: parsed.error.issues },
       { status: 400 }
     );
   }
+
+  const { url, userId } = parsed.data;
 
   try {
     const metadata = await extractMetadata(url);

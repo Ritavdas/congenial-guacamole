@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { generateText } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { getModel } from "@/lib/ai";
 import { updateBookmarkSummary } from "@/lib/actions";
+import { summarizeSchema } from "@/lib/validators";
 
 export async function POST(request: NextRequest) {
   const { userId } = await auth();
@@ -10,18 +11,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { bookmarkId, content, title } = await request.json();
-
-  if (!content) {
+  const body = await request.json();
+  const parsed = summarizeSchema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "No content to summarize" },
+      { error: "Invalid input", details: parsed.error.issues },
       { status: 400 }
     );
   }
 
+  const { bookmarkId, content, title } = parsed.data;
+
   try {
     const { text: summary } = await generateText({
-      model: openai("gpt-4o-mini"),
+      model: getModel(),
       prompt: `Summarize the following article in 2-3 concise paragraphs. Focus on the key points and main takeaways.
 
 Title: ${title ?? "Unknown"}
