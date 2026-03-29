@@ -100,6 +100,17 @@ src/
     └── utils.ts         # Utility functions
 ```
 
+## Browser Extension
+
+A Chrome extension is included in `/extension`. To install:
+
+1. Set `EXTENSION_API_KEY` in your `.env.local` (any random secret string)
+2. Open `chrome://extensions` in Chrome
+3. Enable "Developer mode"
+4. Click "Load unpacked" and select the `extension/` folder
+5. Click the extension icon, configure your app URL, API key, and Clerk user ID
+6. Save any page with one click!
+
 ## License
 
 MIT
