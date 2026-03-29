@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import Image from "next/image";
 import { Bookmark, Highlight } from "@/db/schema";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -170,12 +171,15 @@ export function ReaderView({ bookmark, highlights }: ReaderViewProps) {
           </header>
 
           {bookmark.ogImage && (
-            <img
-              src={bookmark.ogImage}
-              alt={bookmark.title ?? ""}
-              className="mb-8 w-full rounded-xl object-cover"
-              style={{ maxHeight: "400px" }}
-            />
+            <div className="relative mb-8 w-full overflow-hidden rounded-xl" style={{ maxHeight: "400px", minHeight: "200px" }}>
+              <Image
+                src={bookmark.ogImage}
+                alt={bookmark.title ?? ""}
+                fill
+                className="object-cover"
+                unoptimized
+              />
+            </div>
           )}
 
           {/* TTS + AI Summary row */}

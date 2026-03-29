@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { BookmarkWithTags } from "@/db/schema";
 import {
   Card,
@@ -84,10 +85,12 @@ export function BookmarkCard({ bookmark, onTagClick }: BookmarkCardProps) {
     <Card className="group flex flex-col overflow-hidden transition-shadow hover:shadow-md">
       {bookmark.ogImage && (
         <div className="relative h-40 overflow-hidden">
-          <img
+          <Image
             src={bookmark.ogImage}
             alt={bookmark.title ?? ""}
-            className="h-full w-full object-cover transition-transform group-hover:scale-105"
+            fill
+            className="object-cover transition-transform group-hover:scale-105"
+            unoptimized
           />
         </div>
       )}
