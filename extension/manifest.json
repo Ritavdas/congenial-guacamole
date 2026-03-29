@@ -3,7 +3,7 @@
   "name": "Pockaa — Save to Read Later",
   "version": "1.0.0",
   "description": "Save any webpage to your Pockaa reading list with one click.",
-  "permissions": ["activeTab"],
+  "permissions": ["activeTab", "storage"],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
