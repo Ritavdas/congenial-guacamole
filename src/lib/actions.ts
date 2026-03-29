@@ -23,6 +23,8 @@ export async function addBookmark(url: string) {
       ogImage: metadata.ogImage,
       domain: metadata.domain,
       content: metadata.content,
+      htmlContent: metadata.htmlContent,
+      wordCount: metadata.wordCount,
     })
     .returning();
 

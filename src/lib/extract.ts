@@ -1,5 +1,6 @@
 import { JSDOM } from "jsdom";
 import { Readability } from "@mozilla/readability";
+import { isTwitterStatusUrl, extractTwitterMetadata } from "./extract-twitter";
 
 export interface ExtractedMetadata {
   title: string | null;
@@ -7,10 +8,18 @@ export interface ExtractedMetadata {
   ogImage: string | null;
   domain: string;
   content: string | null;
+  htmlContent: string | null;
+  wordCount: number | null;
 }
 
 export async function extractMetadata(url: string): Promise<ExtractedMetadata> {
   const domain = new URL(url).hostname.replace("www.", "");
+
+  // Twitter/X pages render OG tags via JS — use the syndication API instead
+  if (isTwitterStatusUrl(url)) {
+    const twitterData = await extractTwitterMetadata(url);
+    if (twitterData) return twitterData;
+  }
 
   try {
     const response = await fetch(url, {
@@ -44,17 +53,23 @@ export async function extractMetadata(url: string): Promise<ExtractedMetadata> {
 
     // Extract readable content
     let content: string | null = null;
+    let htmlContent: string | null = null;
+    let wordCount: number | null = null;
     try {
       const reader = new Readability(doc);
       const article = reader.parse();
       content = article?.textContent ?? null;
+      htmlContent = article?.content ?? null;
+      if (content) {
+        wordCount = content.trim().split(/\s+/).length;
+      }
     } catch {
       // Readability can fail on some pages — that's fine
     }
 
-    return { title, description, ogImage, domain, content };
+    return { title, description, ogImage, domain, content, htmlContent, wordCount };
   } catch {
-    return { title: null, description: null, ogImage: null, domain, content: null };
+    return { title: null, description: null, ogImage: null, domain, content: null, htmlContent: null, wordCount: null };
   }
 }
 

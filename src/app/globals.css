@@ -2,6 +2,8 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+@plugin "@tailwindcss/typography";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -127,4 +129,25 @@
   html {
     @apply font-sans;
   }
+}
+
+/* Reader view typography */
+.article-content {
+  font-size: var(--reader-font-size, 18px);
+  font-family: var(--reader-font-family, inherit);
+  line-height: var(--reader-line-height, 1.7);
+}
+
+.article-content img {
+  max-width: 100%;
+  height: auto;
+}
+
+.article-content a {
+  word-break: break-word;
+}
+
+.article-content pre {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
