@@ -10,9 +10,8 @@ import {
   Search,
   Tag,
   FolderOpen,
-  Plus,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AddBookmarkDialog } from "@/components/bookmarks/add-bookmark-dialog";
 
 const navItems = [
   { href: "/", label: "All Bookmarks", icon: Bookmark },
@@ -36,12 +35,7 @@ export function Sidebar() {
       </div>
 
       <div className="p-4">
-        <Link href="/add">
-          <Button className="w-full gap-2">
-            <Plus className="h-4 w-4" />
-            Add Bookmark
-          </Button>
-        </Link>
+        <AddBookmarkDialog fullWidth />
       </div>
 
       <nav className="flex-1 space-y-1 px-3">

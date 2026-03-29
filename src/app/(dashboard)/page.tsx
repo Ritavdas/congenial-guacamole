@@ -3,7 +3,14 @@ import { BookmarkList } from "@/components/bookmarks/bookmark-list";
 import { AddBookmarkDialog } from "@/components/bookmarks/add-bookmark-dialog";
 
 export default async function DashboardPage() {
-  const items = await getBookmarks("all");
+  let items: Awaited<ReturnType<typeof getBookmarks>> = [];
+  let error = false;
+
+  try {
+    items = await getBookmarks("all");
+  } catch {
+    error = true;
+  }
 
   return (
     <div className="space-y-6">
@@ -16,7 +23,16 @@ export default async function DashboardPage() {
         </div>
         <AddBookmarkDialog />
       </div>
-      <BookmarkList bookmarks={items} />
+      {error ? (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-6 text-center">
+          <p className="font-medium text-destructive">Database not connected</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Run <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">npx drizzle-kit push</code> to create the database tables, then refresh.
+          </p>
+        </div>
+      ) : (
+        <BookmarkList bookmarks={items} />
+      )}
     </div>
   );
 }

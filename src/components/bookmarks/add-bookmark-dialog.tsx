@@ -16,7 +16,7 @@ import {
 import { Plus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-export function AddBookmarkDialog() {
+export function AddBookmarkDialog({ fullWidth }: { fullWidth?: boolean }) {
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
@@ -42,7 +42,7 @@ export function AddBookmarkDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button className="gap-2">
+          <Button className={fullWidth ? "w-full gap-2" : "gap-2"}>
             <Plus className="h-4 w-4" />
             Add Bookmark
           </Button>
