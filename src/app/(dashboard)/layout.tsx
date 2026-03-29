@@ -1,5 +1,6 @@
 import { UserButton } from "@clerk/nextjs";
 import { Sidebar } from "@/components/layout/sidebar";
+import { MobileNav } from "@/components/layout/mobile-nav";
 
 export default function DashboardLayout({
   children,
@@ -14,8 +15,11 @@ export default function DashboardLayout({
           <h1 className="text-lg font-semibold">Pockaa</h1>
           <UserButton />
         </header>
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-6 pb-20 md:pb-6">
+          {children}
+        </main>
       </div>
+      <MobileNav />
     </div>
   );
 }

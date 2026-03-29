@@ -160,3 +160,43 @@
   --tw-prose-bold: var(--reader-fg, currentColor);
   --tw-prose-quotes: var(--reader-fg, currentColor);
 }
+
+/* PWA standalone mode adjustments */
+@media (display-mode: standalone) {
+  body {
+    /* Prevent overscroll / pull-to-refresh in standalone mode */
+    overscroll-behavior-y: contain;
+  }
+}
+
+/* Safe area insets for notched devices */
+@supports (padding-top: env(safe-area-inset-top)) {
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Smooth momentum scrolling for mobile */
+.mobile-scroll {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Disable user-select on navigation elements for app-like feel */
+nav a,
+nav button {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Touch-friendly tap targets */
+@media (pointer: coarse) {
+  nav a,
+  nav button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

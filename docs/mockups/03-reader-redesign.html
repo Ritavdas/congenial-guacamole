@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pockaa — Reader View Redesign Mockup</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #fafafa; --surface: #ffffff;
+    --border: #e5e5e5; --border-subtle: #f0f0f0;
+    --text: #1a1a1a; --text-secondary: #737373; --text-tertiary: #a3a3a3;
+    --accent: #6366f1; --accent-light: #eef2ff; --accent-hover: #4f46e5;
+    --highlight-yellow: #fef9c3; --highlight-green: #dcfce7;
+    --highlight-blue: #dbeafe; --highlight-pink: #fce7f3;
+    --radius: 12px; --radius-sm: 8px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.05);
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.08);
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-serif: 'Georgia', 'Times New Roman', serif;
+  }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
+
+  /* ─── READING PROGRESS ─── */
+  .reading-progress { position: fixed; top: 0; left: 0; right: 0; height: 3px; background: var(--border-subtle); z-index: 100; }
+  .reading-progress-bar { height: 100%; width: 42%; background: linear-gradient(90deg, var(--accent), #8b5cf6); border-radius: 0 2px 2px 0; transition: width .3s; }
+
+  /* ─── TOP BAR ─── */
+  .topbar {
+    position: fixed; top: 3px; left: 0; right: 0; height: 56px; z-index: 90;
+    background: rgba(255,255,255,.85); backdrop-filter: blur(12px) saturate(1.5);
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex; align-items: center; padding: 0 24px;
+  }
+  .topbar-left, .topbar-right { display: flex; align-items: center; gap: 8px; }
+  .topbar-center { flex: 1; text-align: center; }
+  .topbar-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 400px; margin: 0 auto; }
+  .topbar-progress-text { font-size: 11px; color: var(--text-tertiary); }
+  .icon-btn {
+    width: 36px; height: 36px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center; background: var(--surface);
+    cursor: pointer; transition: all .15s; font-size: 16px;
+  }
+  .icon-btn:hover { background: var(--accent-light); border-color: var(--accent); }
+  .back-btn { font-size: 14px; font-weight: 500; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; cursor: pointer; background: none; border: none; padding: 8px 12px; border-radius: var(--radius-sm); transition: all .15s; }
+  .back-btn:hover { background: var(--accent-light); color: var(--accent); }
+
+  /* ─── ARTICLE CONTAINER ─── */
+  .article-container { max-width: 680px; margin: 0 auto; padding: 90px 24px 120px; }
+
+  /* ─── ARTICLE HEADER ─── */
+  .article-header { margin-bottom: 40px; }
+  .article-domain { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--accent); margin-bottom: 16px; background: var(--accent-light); padding: 6px 14px; border-radius: 999px; }
+  .article-title { font-size: 36px; font-weight: 800; line-height: 1.2; letter-spacing: -1px; margin-bottom: 16px; color: #0a0a0a; }
+  .article-meta { display: flex; align-items: center; gap: 16px; font-size: 14px; color: var(--text-secondary); flex-wrap: wrap; }
+  .article-meta-item { display: flex; align-items: center; gap: 5px; }
+  .article-meta .sep { width: 4px; height: 4px; background: var(--text-tertiary); border-radius: 50%; }
+
+  /* ─── AI SUMMARY ─── */
+  .ai-summary {
+    background: linear-gradient(135deg, #f5f3ff, #eef2ff); border: 1px solid #e0e7ff;
+    border-radius: var(--radius); padding: 20px 24px; margin-bottom: 40px; position: relative;
+  }
+  .ai-summary-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .ai-badge { background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; letter-spacing: .3px; }
+  .ai-summary-label { font-size: 13px; font-weight: 600; color: var(--accent); }
+  .ai-summary-text { font-size: 14px; line-height: 1.7; color: #374151; }
+  .ai-summary-toggle { position: absolute; top: 20px; right: 20px; font-size: 12px; color: var(--accent); cursor: pointer; font-weight: 500; background: none; border: none; }
+
+  /* ─── ARTICLE BODY ─── */
+  .article-body { font-family: var(--font-serif); font-size: 19px; line-height: 1.8; color: #1f2937; }
+  .article-body p { margin-bottom: 24px; }
+  .article-body h2 { font-family: var(--font); font-size: 24px; font-weight: 700; margin: 48px 0 16px; letter-spacing: -0.5px; color: #0a0a0a; }
+  .article-body h3 { font-family: var(--font); font-size: 20px; font-weight: 600; margin: 36px 0 12px; color: #0a0a0a; }
+  .article-body blockquote {
+    border-left: 3px solid var(--accent); padding: 4px 0 4px 20px; margin: 24px 0;
+    color: var(--text-secondary); font-style: italic;
+  }
+  .article-body code { font-size: 15px; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; }
+  .article-body pre {
+    background: #1e1e2e; color: #cdd6f4; padding: 20px; border-radius: var(--radius-sm);
+    overflow-x: auto; margin: 24px 0; font-size: 14px; line-height: 1.6;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .article-body a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+  mark.yellow { background: var(--highlight-yellow); padding: 2px 0; border-radius: 2px; }
+  mark.blue { background: var(--highlight-blue); padding: 2px 0; border-radius: 2px; }
+
+  /* ─── FLOATING TOOLBAR ─── */
+  .highlight-toolbar {
+    position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+    background: var(--text); color: #fff; padding: 8px 12px; border-radius: var(--radius);
+    display: flex; align-items: center; gap: 6px; box-shadow: var(--shadow-lg);
+    font-size: 13px;
+  }
+  .hl-btn { width: 32px; height: 32px; border-radius: var(--radius-sm); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: all .15s; background: rgba(255,255,255,.1); color: #fff; }
+  .hl-btn:hover { background: rgba(255,255,255,.2); }
+  .hl-color { width: 20px; height: 20px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: all .15s; }
+  .hl-color:hover, .hl-color.active { border-color: #fff; transform: scale(1.15); }
+  .hl-sep { width: 1px; height: 20px; background: rgba(255,255,255,.2); margin: 0 4px; }
+
+  /* ─── SIDE PANEL ─── */
+  .side-panel {
+    position: fixed; right: 0; top: 59px; bottom: 0; width: 320px;
+    background: var(--surface); border-left: 1px solid var(--border);
+    padding: 24px; overflow-y: auto;
+  }
+  .panel-tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .panel-tab { padding: 10px 16px; font-size: 13px; font-weight: 600; color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s; background: none; border-top: none; border-left: none; border-right: none; }
+  .panel-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .panel-tab:hover { color: var(--text); }
+
+  .highlight-entry { padding: 12px; background: var(--highlight-yellow); border-radius: var(--radius-sm); margin-bottom: 10px; font-size: 13px; line-height: 1.6; position: relative; cursor: pointer; transition: all .15s; }
+  .highlight-entry:hover { transform: scale(1.02); }
+  .highlight-entry.hl-blue { background: var(--highlight-blue); }
+  .highlight-entry.hl-green { background: var(--highlight-green); }
+  .highlight-note { font-size: 12px; color: var(--text-secondary); margin-top: 6px; font-style: italic; }
+
+  .toc-item { padding: 8px 12px; font-size: 13px; color: var(--text-secondary); border-radius: var(--radius-sm); cursor: pointer; transition: all .15s; border-left: 2px solid transparent; }
+  .toc-item:hover { background: var(--surface-hover, #f5f5f5); color: var(--text); }
+  .toc-item.active { border-left-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .toc-item.indent { padding-left: 28px; font-size: 12px; }
+
+  .panel-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-tertiary); font-weight: 600; margin-bottom: 12px; }
+
+  /* ─── FLOATING TTS ─── */
+  .tts-bar {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--surface); border: 1px solid var(--border); padding: 10px 20px;
+    border-radius: 999px; display: flex; align-items: center; gap: 12px;
+    box-shadow: var(--shadow-lg); font-size: 13px;
+  }
+  .tts-btn { width: 36px; height: 36px; border-radius: 50%; border: none; background: var(--accent); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all .15s; }
+  .tts-btn:hover { background: var(--accent-hover); }
+  .tts-progress { flex: 1; width: 180px; height: 4px; background: var(--border); border-radius: 2px; position: relative; }
+  .tts-progress-bar { height: 100%; width: 35%; background: var(--accent); border-radius: 2px; }
+  .tts-time { font-size: 12px; color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
+  .tts-speed { font-size: 12px; font-weight: 600; color: var(--accent); cursor: pointer; background: var(--accent-light); padding: 4px 10px; border-radius: 999px; border: none; }
+
+  .mockup-banner {
+    position: fixed; bottom: 80px; right: 340px; background: var(--text); color: #fff;
+    padding: 10px 20px; border-radius: 999px; font-size: 13px; font-weight: 500;
+    z-index: 999; box-shadow: var(--shadow-lg); display: flex; align-items: center; gap: 8px;
+  }
+  .mockup-banner .dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; }
+</style>
+</head>
+<body>
+
+<!-- Reading Progress -->
+<div class="reading-progress"><div class="reading-progress-bar"></div></div>
+
+<!-- Top Bar -->
+<div class="topbar">
+  <div class="topbar-left">
+    <button class="back-btn">← Back</button>
+  </div>
+  <div class="topbar-center">
+    <div class="topbar-title">Building a Design System from Scratch with Radix and Tailwind</div>
+    <div class="topbar-progress-text">42% read · 12 min remaining</div>
+  </div>
+  <div class="topbar-right">
+    <button class="icon-btn" title="Favorite">🤍</button>
+    <button class="icon-btn" title="Archive">📥</button>
+    <button class="icon-btn" title="Share">🔗</button>
+    <button class="icon-btn" title="Settings">⚙️</button>
+  </div>
+</div>
+
+<!-- Article -->
+<div class="article-container" style="margin-right: 340px;">
+  <div class="article-header">
+    <div class="article-domain">🔗 vercel.com/blog</div>
+    <h1 class="article-title">Building a Design System from Scratch with Radix and Tailwind</h1>
+    <div class="article-meta">
+      <span class="article-meta-item">✍️ Sarah Chen</span>
+      <span class="sep"></span>
+      <span class="article-meta-item">📅 March 25, 2026</span>
+      <span class="sep"></span>
+      <span class="article-meta-item">⏱️ 12 min read</span>
+      <span class="sep"></span>
+      <span class="article-meta-item">📊 2,847 words</span>
+    </div>
+  </div>
+
+  <!-- AI Summary -->
+  <div class="ai-summary">
+    <div class="ai-summary-header">
+      <span class="ai-badge">✨ AI</span>
+      <span class="ai-summary-label">Summary</span>
+    </div>
+    <button class="ai-summary-toggle">Collapse ↑</button>
+    <p class="ai-summary-text">This article walks through building a production-grade design system using Radix UI primitives for accessibility and Tailwind CSS for styling. Key takeaways: (1) Start with design tokens mapped to CSS custom properties, (2) Use Radix for complex interactive patterns like dialogs, popovers, and dropdowns, (3) Build a variant system using class-variance-authority, and (4) Document components with Storybook for team adoption.</p>
+  </div>
+
+  <!-- Article Body -->
+  <div class="article-body">
+    <p>Design systems are the backbone of scalable product development. They ensure consistency, speed up development, and create a shared language between designers and engineers. But building one from scratch can feel overwhelming.</p>
+
+    <p>In this guide, we'll walk through creating a <mark class="yellow">production-grade design system using Radix UI for accessible primitives and Tailwind CSS for a utility-first styling approach</mark>. By the end, you'll have a system that's both flexible and maintainable.</p>
+
+    <h2>Why Radix + Tailwind?</h2>
+
+    <p>The combination of Radix and Tailwind has become the de facto standard for modern React design systems. Here's why:</p>
+
+    <blockquote>
+      "The best design systems are invisible. They should feel like a natural extension of the platform, not a framework imposed on top of it."
+      <br>— Josh Comeau
+    </blockquote>
+
+    <p><mark class="blue">Radix provides unstyled, accessible primitives that handle all the complex interaction patterns</mark> — focus management, keyboard navigation, screen reader announcements — while Tailwind lets you apply your visual design language without fighting CSS specificity wars.</p>
+
+    <h2>Setting Up Design Tokens</h2>
+
+    <p>Every design system starts with tokens. These are the atomic values that define your visual language: colors, spacing, typography, shadows, and radii.</p>
+
+    <pre><code>// tokens.ts
+export const tokens = {
+  colors: {
+    primary: { 50: '#eef2ff', 500: '#6366f1', 900: '#312e81' },
+    neutral: { 50: '#fafafa', 500: '#737373', 900: '#171717' },
+  },
+  spacing: { xs: '4px', sm: '8px', md: '16px', lg: '24px', xl: '32px' },
+  radii: { sm: '6px', md: '8px', lg: '12px', full: '9999px' },
+};</code></pre>
+
+    <h3>Mapping Tokens to CSS Custom Properties</h3>
+
+    <p>The key insight is mapping these tokens to CSS custom properties in your Tailwind config. This gives you the best of both worlds: type-safe tokens in JavaScript and utility classes in your templates.</p>
+
+    <h2>Building Your First Component</h2>
+
+    <p>Let's build a Button component that demonstrates the full pattern: Radix primitives, CVA for variants, and Tailwind for styling.</p>
+
+    <pre><code>import { cva, type VariantProps } from "class-variance-authority";
+
+const buttonVariants = cva(
+  "inline-flex items-center justify-center rounded-lg font-medium transition-colors",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary-500 text-white hover:bg-primary-600",
+        outline: "border border-neutral-300 hover:bg-neutral-50",
+        ghost: "hover:bg-neutral-100",
+      },
+      size: {
+        sm: "h-8 px-3 text-sm",
+        md: "h-10 px-4 text-sm",
+        lg: "h-12 px-6 text-base",
+      },
+    },
+    defaultVariants: { variant: "default", size: "md" },
+  }
+);</code></pre>
+
+    <p>This pattern is incredibly powerful because it gives you type-safe variants that compose naturally with Tailwind's utility classes, while Radix handles all the accessibility concerns under the hood.</p>
+  </div>
+</div>
+
+<!-- Side Panel -->
+<div class="side-panel">
+  <div class="panel-tabs">
+    <button class="panel-tab active">Highlights</button>
+    <button class="panel-tab">Contents</button>
+    <button class="panel-tab">Notes</button>
+  </div>
+
+  <div class="panel-section-title">3 Highlights</div>
+
+  <div class="highlight-entry">
+    "production-grade design system using Radix UI for accessible primitives and Tailwind CSS for a utility-first styling approach"
+    <div class="highlight-note">📝 Core thesis of the article</div>
+  </div>
+
+  <div class="highlight-entry hl-blue">
+    "Radix provides unstyled, accessible primitives that handle all the complex interaction patterns"
+  </div>
+
+  <div class="highlight-entry hl-green" style="background: var(--highlight-green);">
+    "The best design systems are invisible. They should feel like a natural extension of the platform."
+    <div class="highlight-note">📝 Great quote — use in presentation</div>
+  </div>
+
+  <!-- Table of Contents (hidden behind tab) -->
+  <!--
+  <div class="toc-item active">Why Radix + Tailwind?</div>
+  <div class="toc-item">Setting Up Design Tokens</div>
+  <div class="toc-item indent">Mapping Tokens to CSS</div>
+  <div class="toc-item">Building Your First Component</div>
+  -->
+</div>
+
+<!-- Highlight Toolbar (floating) -->
+<div class="highlight-toolbar">
+  <div class="hl-color" style="background: #fef9c3;" title="Yellow"></div>
+  <div class="hl-color active" style="background: #dbeafe;" title="Blue"></div>
+  <div class="hl-color" style="background: #dcfce7;" title="Green"></div>
+  <div class="hl-color" style="background: #fce7f3;" title="Pink"></div>
+  <div class="hl-sep"></div>
+  <button class="hl-btn" title="Add note">📝</button>
+  <button class="hl-btn" title="Copy">📋</button>
+  <button class="hl-btn" title="Share">🔗</button>
+</div>
+
+<!-- TTS Bar -->
+<div class="tts-bar">
+  <button class="tts-btn">▶</button>
+  <div class="tts-progress"><div class="tts-progress-bar"></div></div>
+  <span class="tts-time">4:12 / 12:00</span>
+  <button class="tts-speed">1.5×</button>
+</div>
+
+<div class="mockup-banner">
+  <span class="dot"></span>
+  Mockup 3/6 — Reader Redesign: AI Summary, Highlights Panel, TTS Player, Progress Bar
+</div>
+
+</body>
+</html>
