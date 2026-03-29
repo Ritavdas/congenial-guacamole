@@ -1,6 +1,7 @@
 "use client";
 
-import { Bookmark } from "@/db/schema";
+import { useState } from "react";
+import { BookmarkWithTags } from "@/db/schema";
 import {
   Card,
   CardContent,
@@ -16,6 +17,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
 import {
   Star,
   Archive,
@@ -31,14 +33,18 @@ import {
   toggleBookmarkRead,
   deleteBookmark,
 } from "@/lib/actions";
+import { TagSelector } from "./tag-selector";
 import Link from "next/link";
 import { toast } from "sonner";
 
 interface BookmarkCardProps {
-  bookmark: Bookmark;
+  bookmark: BookmarkWithTags;
+  onTagClick?: (tagId: string) => void;
 }
 
-export function BookmarkCard({ bookmark }: BookmarkCardProps) {
+export function BookmarkCard({ bookmark, onTagClick }: BookmarkCardProps) {
+  const [cardTags, setCardTags] = useState(bookmark.tags);
+
   async function handleFavorite() {
     try {
       await toggleBookmarkFavorite(bookmark.id);
@@ -91,10 +97,12 @@ export function BookmarkCard({ bookmark }: BookmarkCardProps) {
             {bookmark.title ?? bookmark.url}
           </CardTitle>
           <DropdownMenu>
-            <DropdownMenuTrigger>
-              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
+            <DropdownMenuTrigger
+              render={
+                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" />
+              }
+            >
+              <MoreVertical className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={handleFavorite}>
@@ -120,19 +128,39 @@ export function BookmarkCard({ bookmark }: BookmarkCardProps) {
           {bookmark.description ?? "No description"}
         </CardDescription>
       </CardHeader>
+      {cardTags.length > 0 && (
+        <div className="flex flex-wrap gap-1 px-6 pb-2">
+          {cardTags.map((tag) => (
+            <Badge
+              key={tag.id}
+              variant="secondary"
+              className="cursor-pointer px-1.5 py-0 text-[10px]"
+              style={{ borderColor: tag.color, borderWidth: 1 }}
+              onClick={() => onTagClick?.(tag.id)}
+            >
+              <span
+                className="mr-1 inline-block h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: tag.color }}
+              />
+              {tag.name}
+            </Badge>
+          ))}
+        </div>
+      )}
       <CardFooter className="flex items-center justify-between pt-0">
         <span className="text-xs text-muted-foreground">{bookmark.domain}</span>
-        <div className="flex gap-1">
-          <Link href={`/read/${bookmark.id}`}>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <BookOpen className="h-4 w-4" />
-            </Button>
-          </Link>
-          <a href={bookmark.url} target="_blank" rel="noopener noreferrer">
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <ExternalLink className="h-4 w-4" />
-            </Button>
-          </a>
+        <div className="flex items-center gap-1">
+          <TagSelector
+            bookmarkId={bookmark.id}
+            currentTags={cardTags}
+            onTagsChange={setCardTags}
+          />
+          <Button variant="ghost" size="icon" className="h-8 w-8" nativeButton={false} render={<Link href={`/read/${bookmark.id}`} />}>
+            <BookOpen className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8" nativeButton={false} render={<a href={bookmark.url} target="_blank" rel="noopener noreferrer" />}>
+            <ExternalLink className="h-4 w-4" />
+          </Button>
         </div>
       </CardFooter>
     </Card>

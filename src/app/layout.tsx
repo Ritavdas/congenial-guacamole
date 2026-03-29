@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PocketClone — Save, Read, Remember",
+  title: "Pockaa — Save, Read, Remember",
   description: "Your personal bookmark manager with AI-powered summaries and reader mode",
 };
 

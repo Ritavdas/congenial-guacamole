@@ -1,7 +1,7 @@
 const STORAGE_KEYS = {
-  apiUrl: "pocketclone_api_url",
-  apiKey: "pocketclone_api_key",
-  userId: "pocketclone_user_id",
+  apiUrl: "pockaa_api_url",
+  apiKey: "pockaa_api_key",
+  userId: "pockaa_user_id",
 };
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -109,12 +109,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         throw new Error(data.error || `HTTP ${response.status}`);
       }
 
-      showStatus("✓ Saved to PocketClone!", "success");
+      showStatus("✓ Saved to Pockaa!", "success");
     } catch (err) {
       showStatus(`Failed: ${err.message}`, "error");
     } finally {
       saveBtnEl.disabled = false;
-      saveBtnEl.textContent = "Save to PocketClone";
+      saveBtnEl.textContent = "Save to Pockaa";
     }
   });
 

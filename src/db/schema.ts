@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, integer, uuid } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, uuid, primaryKey } from "drizzle-orm/pg-core";
 
 export const bookmarks = pgTable("bookmarks", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -34,7 +34,9 @@ export const bookmarkTags = pgTable("bookmark_tags", {
   tagId: uuid("tag_id")
     .notNull()
     .references(() => tags.id, { onDelete: "cascade" }),
-});
+}, (t) => [
+  primaryKey({ columns: [t.bookmarkId, t.tagId] }),
+]);
 
 export const collections = pgTable("collections", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -73,6 +75,10 @@ export type Bookmark = typeof bookmarks.$inferSelect;
 export type NewBookmark = typeof bookmarks.$inferInsert;
 export type Tag = typeof tags.$inferSelect;
 export type NewTag = typeof tags.$inferInsert;
+export type BookmarkWithTags = Bookmark & {
+  tags: { id: string; name: string; color: string }[];
+};
+export type TagWithCount = Tag & { bookmarkCount: number };
 export type Collection = typeof collections.$inferSelect;
 export type NewCollection = typeof collections.$inferInsert;
 export type Highlight = typeof highlights.$inferSelect;

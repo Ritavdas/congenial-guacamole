@@ -5,11 +5,11 @@ import { searchBookmarks } from "@/lib/actions";
 import { BookmarkList } from "@/components/bookmarks/bookmark-list";
 import { Input } from "@/components/ui/input";
 import { Search as SearchIcon } from "lucide-react";
-import type { Bookmark } from "@/db/schema";
+import type { BookmarkWithTags } from "@/db/schema";
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Bookmark[]>([]);
+  const [results, setResults] = useState<BookmarkWithTags[]>([]);
   const [searching, setSearching] = useState(false);
 
   async function handleSearch(value: string) {

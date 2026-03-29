@@ -1,13 +1,17 @@
-import { getBookmarks } from "@/lib/actions";
-import { BookmarkList } from "@/components/bookmarks/bookmark-list";
+import { getBookmarks, getTags } from "@/lib/actions";
+import { FilterableBookmarkList } from "@/components/bookmarks/filterable-bookmark-list";
 import { AddBookmarkDialog } from "@/components/bookmarks/add-bookmark-dialog";
 
 export default async function DashboardPage() {
   let items: Awaited<ReturnType<typeof getBookmarks>> = [];
+  let tagsList: Awaited<ReturnType<typeof getTags>> = [];
   let error = false;
 
   try {
-    items = await getBookmarks("all");
+    [items, tagsList] = await Promise.all([
+      getBookmarks("all"),
+      getTags(),
+    ]);
   } catch {
     error = true;
   }
@@ -31,7 +35,7 @@ export default async function DashboardPage() {
           </p>
         </div>
       ) : (
-        <BookmarkList bookmarks={items} />
+        <FilterableBookmarkList bookmarks={items} tags={tagsList} />
       )}
     </div>
   );

@@ -36,19 +36,18 @@ const THEME_MAP: Record<string, { bg: string; fg: string; muted: string }> = {
   sepia: { bg: "#f4ecd8", fg: "#5b4636", muted: "#8b7355" },
 };
 
-const STORAGE_KEY = "pocketclone-reader-settings";
+const STORAGE_KEY = "pockaa-reader-settings";
 
 export function useReaderSettings() {
-  const [settings, setSettings] = useState<ReaderSettings>(DEFAULT_SETTINGS);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
+  const [settings, setSettings] = useState<ReaderSettings>(() => {
+    if (typeof window === "undefined") return DEFAULT_SETTINGS;
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) setSettings(JSON.parse(saved));
+      if (saved) return JSON.parse(saved) as ReaderSettings;
     } catch {}
-    setLoaded(true);
-  }, []);
+    return DEFAULT_SETTINGS;
+  });
+  const [loaded] = useState(() => typeof window !== "undefined");
 
   const updateSettings = useCallback(
     (partial: Partial<ReaderSettings>) => {

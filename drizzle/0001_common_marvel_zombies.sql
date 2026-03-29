@@ -1,0 +1,1 @@
+ALTER TABLE "bookmark_tags" ADD CONSTRAINT "bookmark_tags_bookmark_id_tag_id_pk" PRIMARY KEY("bookmark_id","tag_id");

@@ -1,4 +1,4 @@
-# PocketClone
+# Pockaa
 
 A full-featured bookmark manager inspired by Pocket — save, read, and organize articles with AI-powered summaries.
 
@@ -43,7 +43,9 @@ cp .env.local.example .env.local
 You'll need:
 - **Supabase**: Create a project at [supabase.com](https://supabase.com), copy the Postgres connection string
 - **Clerk**: Create a project at [clerk.com](https://clerk.com), copy the publishable and secret keys
-- **OpenAI**: Get an API key at [platform.openai.com](https://platform.openai.com) (for AI summaries)
+- **AI Summaries** (choose one):
+  - **Ollama (default, free & local)**: Install [Ollama](https://ollama.com), then run `ollama pull llama3.2:3b` and `ollama serve`
+  - **OpenAI**: Get an API key at [platform.openai.com](https://platform.openai.com), set `AI_PROVIDER=openai` in `.env.local`
 
 ### 3. Set Up Database
 

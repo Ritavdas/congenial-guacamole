@@ -30,7 +30,7 @@ export function Sidebar() {
       <div className="flex h-14 items-center border-b px-4">
         <Link href="/" className="flex items-center gap-2 font-bold">
           <Bookmark className="h-5 w-5" />
-          <span>PocketClone</span>
+          <span>Pockaa</span>
         </Link>
       </div>
 

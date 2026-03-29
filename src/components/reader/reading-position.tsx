@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-const STORAGE_PREFIX = "pocketclone-reading-pos-";
+const STORAGE_PREFIX = "pockaa-reading-pos-";
 
 export function useSaveReadingPosition(bookmarkId: string) {
   useEffect(() => {

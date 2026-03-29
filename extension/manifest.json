@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "PocketClone — Save to Read Later",
+  "name": "Pockaa — Save to Read Later",
   "version": "1.0.0",
-  "description": "Save any webpage to your PocketClone reading list with one click.",
+  "description": "Save any webpage to your Pockaa reading list with one click.",
   "permissions": ["activeTab"],
   "action": {
     "default_popup": "popup.html",

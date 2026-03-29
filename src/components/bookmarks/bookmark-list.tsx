@@ -1,13 +1,14 @@
 "use client";
 
-import { Bookmark } from "@/db/schema";
+import { BookmarkWithTags } from "@/db/schema";
 import { BookmarkCard } from "./bookmark-card";
 
 interface BookmarkListProps {
-  bookmarks: Bookmark[];
+  bookmarks: BookmarkWithTags[];
+  onTagClick?: (tagId: string) => void;
 }
 
-export function BookmarkList({ bookmarks }: BookmarkListProps) {
+export function BookmarkList({ bookmarks, onTagClick }: BookmarkListProps) {
   if (bookmarks.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center">
@@ -22,7 +23,7 @@ export function BookmarkList({ bookmarks }: BookmarkListProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {bookmarks.map((bookmark) => (
-        <BookmarkCard key={bookmark.id} bookmark={bookmark} />
+        <BookmarkCard key={bookmark.id} bookmark={bookmark} onTagClick={onTagClick} />
       ))}
     </div>
   );
