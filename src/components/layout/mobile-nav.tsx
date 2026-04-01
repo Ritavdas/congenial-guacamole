@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Bookmark, Star, Archive, Search, Tag, FolderOpen } from "lucide-react";
+import { Bookmark, Star, Archive, Search, Tag, Import } from "lucide-react";
 
 const navItems = [
   { href: "/", label: "All", icon: Bookmark },
@@ -11,7 +11,7 @@ const navItems = [
   { href: "/archive", label: "Archive", icon: Archive },
   { href: "/search", label: "Search", icon: Search },
   { href: "/tags", label: "Tags", icon: Tag },
-  { href: "/collections", label: "Collections", icon: FolderOpen },
+  { href: "/import", label: "Import", icon: Import },
 ];
 
 export function MobileNav() {

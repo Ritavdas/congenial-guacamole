@@ -10,6 +10,7 @@ import { AddBookmarkDialog } from "@/components/bookmarks/add-bookmark-dialog";
 import { DashboardStats } from "@/components/bookmarks/dashboard-stats";
 import { ReadingQueue } from "@/components/bookmarks/reading-queue";
 import { RecentBookmarks } from "@/components/bookmarks/recent-bookmarks";
+import { DailyRecommendations } from "@/components/bookmarks/daily-recommendations";
 
 export default async function DashboardPage() {
   let items: Awaited<ReturnType<typeof getBookmarks>> = [];
@@ -74,6 +75,9 @@ export default async function DashboardPage() {
 
       {/* Stats Row */}
       {stats && <DashboardStats stats={stats} />}
+
+      {/* AI Daily Recommendations */}
+      <DailyRecommendations />
 
       {/* Reading Queue */}
       {unreadItems.length > 0 && <ReadingQueue bookmarks={unreadItems} />}

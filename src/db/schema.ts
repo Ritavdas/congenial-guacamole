@@ -1,4 +1,12 @@
-import { pgTable, text, timestamp, boolean, integer, uuid, primaryKey } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  timestamp,
+  boolean,
+  integer,
+  uuid,
+  primaryKey,
+} from "drizzle-orm/pg-core";
 
 export const bookmarks = pgTable("bookmarks", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -27,16 +35,18 @@ export const tags = pgTable("tags", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const bookmarkTags = pgTable("bookmark_tags", {
-  bookmarkId: uuid("bookmark_id")
-    .notNull()
-    .references(() => bookmarks.id, { onDelete: "cascade" }),
-  tagId: uuid("tag_id")
-    .notNull()
-    .references(() => tags.id, { onDelete: "cascade" }),
-}, (t) => [
-  primaryKey({ columns: [t.bookmarkId, t.tagId] }),
-]);
+export const bookmarkTags = pgTable(
+  "bookmark_tags",
+  {
+    bookmarkId: uuid("bookmark_id")
+      .notNull()
+      .references(() => bookmarks.id, { onDelete: "cascade" }),
+    tagId: uuid("tag_id")
+      .notNull()
+      .references(() => tags.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.bookmarkId, t.tagId] })],
+);
 
 export const collections = pgTable("collections", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -71,6 +81,18 @@ export const highlights = pgTable("highlights", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const dailyRecommendations = pgTable("daily_recommendations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: text("user_id").notNull(),
+  bookmarkId: uuid("bookmark_id")
+    .notNull()
+    .references(() => bookmarks.id, { onDelete: "cascade" }),
+  reason: text("reason").notNull(),
+  date: text("date").notNull(),
+  isClicked: boolean("is_clicked").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export type Bookmark = typeof bookmarks.$inferSelect;
 export type NewBookmark = typeof bookmarks.$inferInsert;
 export type Tag = typeof tags.$inferSelect;
@@ -83,3 +105,8 @@ export type Collection = typeof collections.$inferSelect;
 export type NewCollection = typeof collections.$inferInsert;
 export type Highlight = typeof highlights.$inferSelect;
 export type NewHighlight = typeof highlights.$inferInsert;
+export type DailyRecommendation = typeof dailyRecommendations.$inferSelect;
+export type NewDailyRecommendation = typeof dailyRecommendations.$inferInsert;
+export type DailyRecommendationWithBookmark = DailyRecommendation & {
+  bookmark: Bookmark;
+};
