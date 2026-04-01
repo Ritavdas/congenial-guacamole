@@ -17,7 +17,7 @@ export default async function DashboardPage() {
   let stats: Awaited<ReturnType<typeof getBookmarkStats>> | null = null;
   let recentItems: Awaited<ReturnType<typeof getRecentBookmarks>> = [];
   let unreadItems: Awaited<ReturnType<typeof getUnreadBookmarks>> = [];
-  let error = false;
+  let errorMessage = "";
 
   try {
     [items, tagsList, stats, recentItems, unreadItems] = await Promise.all([
@@ -27,22 +27,31 @@ export default async function DashboardPage() {
       getRecentBookmarks(5),
       getUnreadBookmarks(3),
     ]);
-  } catch {
-    error = true;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[DashboardPage] Failed to load data:", msg);
+
+    if (msg === "Unauthorized") {
+      errorMessage = "Your session has expired. Please sign in again.";
+    } else if (
+      msg.includes("connect") ||
+      msg.includes("ECONNREFUSED") ||
+      msg.includes("database")
+    ) {
+      errorMessage =
+        "Unable to connect to the database. Please try again later.";
+    } else {
+      errorMessage =
+        "Something went wrong loading your dashboard. Please try again.";
+    }
   }
 
-  if (error) {
+  if (errorMessage) {
     return (
       <div className="space-y-6">
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-6 text-center">
-          <p className="font-medium text-destructive">Database not connected</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Run{" "}
-            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-              npx drizzle-kit push
-            </code>{" "}
-            to create the database tables, then refresh.
-          </p>
+          <p className="font-medium text-destructive">Error</p>
+          <p className="mt-1 text-sm text-muted-foreground">{errorMessage}</p>
         </div>
       </div>
     );
