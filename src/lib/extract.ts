@@ -1,4 +1,4 @@
-import { JSDOM } from "jsdom";
+import { parseHTML } from "linkedom";
 import { Readability } from "@mozilla/readability";
 import { isTwitterStatusUrl, extractTwitterMetadata } from "./extract-twitter";
 import { isAllowedUrl } from "./url-safety";
@@ -36,8 +36,7 @@ export async function extractMetadata(url: string): Promise<ExtractedMetadata> {
     });
 
     const html = await response.text();
-    const dom = new JSDOM(html, { url });
-    const doc = dom.window.document;
+    const { document: doc } = parseHTML(html);
 
     // Extract Open Graph / meta tags
     const title =
@@ -72,9 +71,25 @@ export async function extractMetadata(url: string): Promise<ExtractedMetadata> {
       // Readability can fail on some pages — that's fine
     }
 
-    return { title, description, ogImage, domain, content, htmlContent, wordCount };
+    return {
+      title,
+      description,
+      ogImage,
+      domain,
+      content,
+      htmlContent,
+      wordCount,
+    };
   } catch {
-    return { title: null, description: null, ogImage: null, domain, content: null, htmlContent: null, wordCount: null };
+    return {
+      title: null,
+      description: null,
+      ogImage: null,
+      domain,
+      content: null,
+      htmlContent: null,
+      wordCount: null,
+    };
   }
 }
 
