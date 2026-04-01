@@ -3,7 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { bookmarks, tags, bookmarkTags } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { parsePocketExport } from "@/lib/import-pocket";
+import { parsePocketExport, parseAlreadyReadJson } from "@/lib/import-pocket";
 
 export async function POST(request: NextRequest) {
   const { userId } = await auth();
@@ -14,13 +14,23 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
+    const alreadyReadFile = formData.get("alreadyRead") as File | null;
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    const html = await file.text();
-    const articles = parsePocketExport(html);
+    const content = await file.text();
+    const articles = parsePocketExport(content);
+
+    // Parse already-read URLs if provided
+    const alreadyReadUrls = new Set<string>();
+    if (alreadyReadFile) {
+      const arContent = await alreadyReadFile.text();
+      for (const url of parseAlreadyReadJson(arContent)) {
+        alreadyReadUrls.add(url);
+      }
+    }
 
     let imported = 0;
     let skipped = 0;
@@ -49,6 +59,8 @@ export async function POST(request: NextRequest) {
           // invalid URL — store without domain
         }
 
+        const isRead = article.isRead || alreadyReadUrls.has(article.url);
+
         await db.transaction(async (tx) => {
           const [bookmark] = await tx
             .insert(bookmarks)
@@ -57,7 +69,7 @@ export async function POST(request: NextRequest) {
               url: article.url,
               title: article.title,
               domain,
-              isRead: false,
+              isRead,
               createdAt: article.timeAdded,
               updatedAt: article.timeAdded,
             })

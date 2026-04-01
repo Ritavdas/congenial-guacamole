@@ -9,21 +9,37 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import { Upload } from "lucide-react";
+import { Upload, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+
+interface ImportResult {
+  imported: number;
+  skipped: number;
+  errors: number;
+  total: number;
+}
 
 export function PocketImport() {
   const [file, setFile] = useState<File | null>(null);
+  const [alreadyReadFile, setAlreadyReadFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [result, setResult] = useState<ImportResult | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const arInputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback((f: File) => {
-    if (!f.name.endsWith(".html") && !f.name.endsWith(".htm")) {
-      toast.error("Please upload an HTML file");
+    const name = f.name.toLowerCase();
+    if (
+      !name.endsWith(".csv") &&
+      !name.endsWith(".html") &&
+      !name.endsWith(".htm")
+    ) {
+      toast.error("Please upload a CSV or HTML file");
       return;
     }
     setFile(f);
+    setResult(null);
   }, []);
 
   const handleDrop = useCallback(
@@ -40,25 +56,27 @@ export function PocketImport() {
     if (!file) return;
 
     setImporting(true);
+    setResult(null);
     try {
       const formData = new FormData();
       formData.append("file", file);
+      if (alreadyReadFile) {
+        formData.append("alreadyRead", alreadyReadFile);
+      }
 
       const res = await fetch("/api/import/pocket", {
         method: "POST",
         body: formData,
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Import failed");
       }
 
-      const data = await res.json();
-      toast.success(
-        `Imported ${data.imported} articles, ${data.skipped} skipped (duplicates), ${data.errors} errors`,
-      );
-      setFile(null);
+      setResult(data as ImportResult);
+      toast.success(`Imported ${data.imported} articles`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Import failed");
     } finally {
@@ -74,11 +92,12 @@ export function PocketImport() {
           Pocket Import
         </CardTitle>
         <CardDescription>
-          Export your Pocket data before the service shut down? Upload your
-          export file (rl_export.html) to import all your saved articles.
+          Upload your Pocket export file (CSV or HTML) to import all your saved
+          articles with tags and timestamps.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Main file upload */}
         <div
           role="button"
           tabIndex={0}
@@ -102,19 +121,54 @@ export function PocketImport() {
           {file ? (
             <p className="text-sm font-medium">{file.name}</p>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              Drag &amp; drop your Pocket export HTML file here, or click to
-              browse
-            </p>
+            <div>
+              <p className="text-sm font-medium">
+                Drop your Pocket export file here
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Accepts .csv (part_000000.csv) or .html (rl_export.html)
+              </p>
+            </div>
           )}
           <input
             ref={inputRef}
             type="file"
-            accept=".html,.htm"
+            accept=".csv,.html,.htm"
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];
               if (f) handleFile(f);
+            }}
+          />
+        </div>
+
+        {/* Optional already-read.json */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => arInputRef.current?.click()}
+          >
+            {alreadyReadFile
+              ? alreadyReadFile.name
+              : "Add already-read.json (optional)"}
+          </Button>
+          {alreadyReadFile && (
+            <button
+              onClick={() => setAlreadyReadFile(null)}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              ✕
+            </button>
+          )}
+          <input
+            ref={arInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) setAlreadyReadFile(f);
             }}
           />
         </div>
@@ -126,6 +180,31 @@ export function PocketImport() {
         >
           {importing ? "Importing…" : "Import"}
         </Button>
+
+        {/* Results */}
+        {result && (
+          <div className="space-y-2 rounded-md border p-4 text-sm">
+            <div className="flex items-center gap-2 font-medium">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              Import complete
+            </div>
+            <ul className="space-y-1 text-muted-foreground">
+              <li>
+                ✅ {result.imported} article{result.imported !== 1 && "s"}{" "}
+                imported
+              </li>
+              {result.skipped > 0 && (
+                <li>⏭️ {result.skipped} skipped (duplicates)</li>
+              )}
+              {result.errors > 0 && (
+                <li className="flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3 text-destructive" />
+                  {result.errors} error{result.errors !== 1 && "s"}
+                </li>
+              )}
+            </ul>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
