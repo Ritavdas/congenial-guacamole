@@ -49,7 +49,9 @@ export function BookmarkCard({ bookmark, onTagClick }: BookmarkCardProps) {
   async function handleFavorite() {
     try {
       await toggleBookmarkFavorite(bookmark.id);
-      toast.success(bookmark.isFavorite ? "Removed from favorites" : "Added to favorites");
+      toast.success(
+        bookmark.isFavorite ? "Removed from favorites" : "Added to favorites",
+      );
     } catch {
       toast.error("Failed to update bookmark");
     }
@@ -83,7 +85,7 @@ export function BookmarkCard({ bookmark, onTagClick }: BookmarkCardProps) {
 
   return (
     <Card className="group flex flex-col overflow-hidden transition-shadow hover:shadow-md">
-      {bookmark.ogImage && (
+      {bookmark.ogImage ? (
         <div className="relative h-40 overflow-hidden">
           <Image
             src={bookmark.ogImage}
@@ -92,6 +94,18 @@ export function BookmarkCard({ bookmark, onTagClick }: BookmarkCardProps) {
             className="object-cover transition-transform group-hover:scale-105"
             unoptimized
           />
+        </div>
+      ) : (
+        <div className="relative flex h-40 items-center justify-center overflow-hidden bg-gradient-to-br from-muted/50 to-muted">
+          {bookmark.domain && (
+            <img
+              src={`https://www.google.com/s2/favicons?domain=${bookmark.domain}&sz=64`}
+              alt=""
+              width={64}
+              height={64}
+              className="opacity-60"
+            />
+          )}
         </div>
       )}
       <CardHeader className="flex-1 pb-2">
@@ -102,7 +116,11 @@ export function BookmarkCard({ bookmark, onTagClick }: BookmarkCardProps) {
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
-                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                />
               }
             >
               <MoreVertical className="h-4 w-4" />
@@ -120,7 +138,10 @@ export function BookmarkCard({ bookmark, onTagClick }: BookmarkCardProps) {
                 <Archive className="mr-2 h-4 w-4" />
                 {bookmark.isArchived ? "Unarchive" : "Archive"}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleDelete} className="text-destructive">
+              <DropdownMenuItem
+                onClick={handleDelete}
+                className="text-destructive"
+              >
                 <Trash2 className="mr-2 h-4 w-4" />
                 Delete
               </DropdownMenuItem>
@@ -128,7 +149,12 @@ export function BookmarkCard({ bookmark, onTagClick }: BookmarkCardProps) {
           </DropdownMenu>
         </div>
         <CardDescription className="line-clamp-2 text-xs">
-          {bookmark.description ?? "No description"}
+          {bookmark.description
+            ? bookmark.description
+            : bookmark.content
+              ? bookmark.content.slice(0, 120) +
+                (bookmark.content.length > 120 ? "..." : "")
+              : (bookmark.domain ?? "No description")}
         </CardDescription>
       </CardHeader>
       {cardTags.length > 0 && (
@@ -158,10 +184,28 @@ export function BookmarkCard({ bookmark, onTagClick }: BookmarkCardProps) {
             currentTags={cardTags}
             onTagsChange={setCardTags}
           />
-          <Button variant="ghost" size="icon" className="h-8 w-8" nativeButton={false} render={<Link href={`/read/${bookmark.id}`} />}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            nativeButton={false}
+            render={<Link href={`/read/${bookmark.id}`} />}
+          >
             <BookOpen className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8" nativeButton={false} render={<a href={bookmark.url} target="_blank" rel="noopener noreferrer" />}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            nativeButton={false}
+            render={
+              <a
+                href={bookmark.url}
+                target="_blank"
+                rel="noopener noreferrer"
+              />
+            }
+          >
             <ExternalLink className="h-4 w-4" />
           </Button>
         </div>

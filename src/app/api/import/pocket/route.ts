@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
     let imported = 0;
     let skipped = 0;
     let errors = 0;
+    const importedIds: string[] = [];
 
     for (const article of articles) {
       try {
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
 
         const isRead = article.isRead || alreadyReadUrls.has(article.url);
 
-        await db.transaction(async (tx) => {
+        const insertedId = await db.transaction(async (tx) => {
           const [bookmark] = await tx
             .insert(bookmarks)
             .values({
@@ -99,8 +100,11 @@ export async function POST(request: NextRequest) {
               tagId,
             });
           }
+
+          return bookmark.id;
         });
 
+        importedIds.push(insertedId);
         imported++;
       } catch {
         errors++;
@@ -112,6 +116,7 @@ export async function POST(request: NextRequest) {
       skipped,
       errors,
       total: articles.length,
+      importedIds,
     });
   } catch {
     return NextResponse.json(

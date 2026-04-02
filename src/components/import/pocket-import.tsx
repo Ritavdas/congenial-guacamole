@@ -9,7 +9,8 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import { Upload, CheckCircle2, AlertCircle } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Upload, CheckCircle2, AlertCircle, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface ImportResult {
@@ -17,16 +18,31 @@ interface ImportResult {
   skipped: number;
   errors: number;
   total: number;
+  importedIds: string[];
 }
+
+interface EnrichResult {
+  enriched: number;
+  failed: number;
+  total: number;
+}
+
+type Phase = "idle" | "importing" | "enriching" | "done";
 
 export function PocketImport() {
   const [file, setFile] = useState<File | null>(null);
   const [alreadyReadFile, setAlreadyReadFile] = useState<File | null>(null);
-  const [importing, setImporting] = useState(false);
+  const [phase, setPhase] = useState<Phase>("idle");
   const [dragOver, setDragOver] = useState(false);
-  const [result, setResult] = useState<ImportResult | null>(null);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [enrichResult, setEnrichResult] = useState<EnrichResult | null>(null);
+  const [enrichProgress, setEnrichProgress] = useState({
+    current: 0,
+    total: 0,
+  });
   const inputRef = useRef<HTMLInputElement>(null);
   const arInputRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const handleFile = useCallback((f: File) => {
     const name = f.name.toLowerCase();
@@ -39,7 +55,9 @@ export function PocketImport() {
       return;
     }
     setFile(f);
-    setResult(null);
+    setImportResult(null);
+    setEnrichResult(null);
+    setPhase("idle");
   }, []);
 
   const handleDrop = useCallback(
@@ -52,11 +70,101 @@ export function PocketImport() {
     [handleFile],
   );
 
+  const startEnrichment = async (bookmarkIds: string[]) => {
+    if (bookmarkIds.length === 0) {
+      setPhase("done");
+      return;
+    }
+
+    setPhase("enriching");
+    setEnrichProgress({ current: 0, total: bookmarkIds.length });
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      const res = await fetch("/api/enrich", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookmarkIds }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        throw new Error("Enrichment request failed");
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response stream");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        // Keep the last (possibly incomplete) chunk in the buffer
+        buffer = events.pop() ?? "";
+
+        for (const event of events) {
+          const dataLine = event
+            .split("\n")
+            .find((line) => line.startsWith("data: "));
+          if (!dataLine) continue;
+
+          try {
+            const data = JSON.parse(dataLine.slice(6));
+
+            if (data.type === "start") {
+              setEnrichProgress({ current: 0, total: data.total });
+            } else if (data.type === "progress") {
+              setEnrichProgress((prev) => ({
+                ...prev,
+                current: prev.current + 1,
+              }));
+            } else if (data.type === "complete") {
+              setEnrichResult({
+                enriched: data.enriched,
+                failed: data.failed,
+                total: data.total,
+              });
+              setPhase("done");
+            }
+          } catch {
+            // skip malformed events
+          }
+        }
+      }
+
+      // If stream ended without a complete event, mark done anyway
+      if (phase !== "done") {
+        setPhase("done");
+      }
+    } catch (err) {
+      if (controller.signal.aborted) {
+        toast.info("Enrichment cancelled");
+      } else {
+        toast.error(err instanceof Error ? err.message : "Enrichment failed");
+      }
+      setPhase("done");
+    } finally {
+      abortRef.current = null;
+    }
+  };
+
+  const handleCancel = () => {
+    abortRef.current?.abort();
+  };
+
   const handleImport = async () => {
     if (!file) return;
 
-    setImporting(true);
-    setResult(null);
+    setPhase("importing");
+    setImportResult(null);
+    setEnrichResult(null);
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -75,14 +183,22 @@ export function PocketImport() {
         throw new Error(data.error || "Import failed");
       }
 
-      setResult(data as ImportResult);
-      toast.success(`Imported ${data.imported} articles`);
+      const result = data as ImportResult;
+      setImportResult(result);
+      toast.success(`Imported ${result.imported} articles`);
+
+      // Auto-trigger enrichment for imported bookmarks
+      await startEnrichment(result.importedIds);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Import failed");
-    } finally {
-      setImporting(false);
+      setPhase("idle");
     }
   };
+
+  const enrichPercent =
+    enrichProgress.total > 0
+      ? Math.round((enrichProgress.current / enrichProgress.total) * 100)
+      : 0;
 
   return (
     <Card>
@@ -175,14 +291,44 @@ export function PocketImport() {
 
         <Button
           onClick={handleImport}
-          disabled={!file || importing}
+          disabled={!file || phase === "importing" || phase === "enriching"}
           className="w-full"
         >
-          {importing ? "Importing…" : "Import"}
+          {phase === "importing" ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Importing…
+            </>
+          ) : (
+            "Import"
+          )}
         </Button>
 
-        {/* Results */}
-        {result && (
+        {/* Enrichment progress */}
+        {phase === "enriching" && (
+          <div className="space-y-2 rounded-md border p-4 text-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 font-medium">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Fetching previews: {enrichProgress.current}/
+                {enrichProgress.total}…
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCancel}
+                className="h-6 px-2"
+              >
+                <X className="h-3 w-3" />
+                Cancel
+              </Button>
+            </div>
+            <Progress value={enrichPercent} className="h-2" />
+          </div>
+        )}
+
+        {/* Results (shown once done) */}
+        {phase === "done" && importResult && (
           <div className="space-y-2 rounded-md border p-4 text-sm">
             <div className="flex items-center gap-2 font-medium">
               <CheckCircle2 className="h-4 w-4 text-green-500" />
@@ -190,19 +336,41 @@ export function PocketImport() {
             </div>
             <ul className="space-y-1 text-muted-foreground">
               <li>
-                ✅ {result.imported} article{result.imported !== 1 && "s"}{" "}
-                imported
+                ✅ {importResult.imported} article
+                {importResult.imported !== 1 && "s"} imported
               </li>
-              {result.skipped > 0 && (
-                <li>⏭️ {result.skipped} skipped (duplicates)</li>
+              {importResult.skipped > 0 && (
+                <li>⏭️ {importResult.skipped} skipped (duplicates)</li>
               )}
-              {result.errors > 0 && (
+              {importResult.errors > 0 && (
                 <li className="flex items-center gap-1">
                   <AlertCircle className="h-3 w-3 text-destructive" />
-                  {result.errors} error{result.errors !== 1 && "s"}
+                  {importResult.errors} error
+                  {importResult.errors !== 1 && "s"}
                 </li>
               )}
             </ul>
+
+            {enrichResult && (
+              <div className="mt-2 border-t pt-2">
+                <div className="flex items-center gap-2 font-medium">
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  Enrichment complete
+                </div>
+                <ul className="mt-1 space-y-1 text-muted-foreground">
+                  <li>
+                    ✅ Enriched {enrichResult.enriched} bookmark
+                    {enrichResult.enriched !== 1 && "s"}
+                  </li>
+                  {enrichResult.failed > 0 && (
+                    <li className="flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3 text-destructive" />
+                      {enrichResult.failed} failed
+                    </li>
+                  )}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </CardContent>

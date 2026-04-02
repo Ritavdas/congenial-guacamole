@@ -11,6 +11,7 @@ import { DashboardStats } from "@/components/bookmarks/dashboard-stats";
 import { ReadingQueue } from "@/components/bookmarks/reading-queue";
 import { RecentBookmarks } from "@/components/bookmarks/recent-bookmarks";
 import { DailyRecommendations } from "@/components/bookmarks/daily-recommendations";
+import { EnrichmentBanner } from "@/components/bookmarks/enrichment-banner";
 
 export default async function DashboardPage() {
   let items: Awaited<ReturnType<typeof getBookmarks>> = [];
@@ -72,6 +73,9 @@ export default async function DashboardPage() {
         </div>
         <AddBookmarkDialog />
       </div>
+
+      {/* Enrichment Banner */}
+      <EnrichmentBanner />
 
       {/* Stats Row */}
       {stats && <DashboardStats stats={stats} />}
