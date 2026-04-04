@@ -1,18 +1,25 @@
-import { getBookmarks } from "@/lib/actions";
-import { BookmarkList } from "@/components/bookmarks/bookmark-list";
+import { getBookmarkCount, getTags } from "@/lib/actions";
+import { InfiniteBookmarkList } from "@/components/bookmarks/infinite-bookmark-list";
 
 export default async function ArchivePage() {
-  const items = await getBookmarks("archived");
+  const [count, tags] = await Promise.all([
+    getBookmarkCount("archived"),
+    getTags(),
+  ]);
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Archive</h2>
         <p className="text-muted-foreground">
-          {items.length} archived {items.length === 1 ? "article" : "articles"}
+          {count} archived {count === 1 ? "article" : "articles"}
         </p>
       </div>
-      <BookmarkList bookmarks={items} />
+      <InfiniteBookmarkList
+        filter="archived"
+        tags={tags}
+        initialCount={count}
+      />
     </div>
   );
 }

@@ -10,7 +10,7 @@ import {
   bookmarkCollections,
   highlights,
 } from "@/db/schema";
-import { eq, and, desc, ilike, or, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, ilike, or, sql, inArray, lt } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { extractMetadata } from "@/lib/extract";
 
@@ -577,4 +577,131 @@ export async function getUnreadBookmarks(limit = 6) {
     .limit(limit);
 
   return rows;
+}
+
+export async function getBookmarksPaginated(
+  filter?: "all" | "favorites" | "archived" | "unread",
+  tagId?: string,
+  cursor?: string,
+  limit: number = 20,
+) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  const conditions = [eq(bookmarks.userId, userId)];
+
+  switch (filter) {
+    case "favorites":
+      conditions.push(eq(bookmarks.isFavorite, true));
+      break;
+    case "archived":
+      conditions.push(eq(bookmarks.isArchived, true));
+      break;
+    case "unread":
+      conditions.push(eq(bookmarks.isRead, false));
+      break;
+    default:
+      conditions.push(eq(bookmarks.isArchived, false));
+  }
+
+  if (tagId) {
+    const taggedBookmarkIds = db
+      .select({ bookmarkId: bookmarkTags.bookmarkId })
+      .from(bookmarkTags)
+      .where(eq(bookmarkTags.tagId, tagId));
+    conditions.push(inArray(bookmarks.id, taggedBookmarkIds));
+  }
+
+  if (cursor) {
+    const [cursorBookmark] = await db
+      .select({ createdAt: bookmarks.createdAt })
+      .from(bookmarks)
+      .where(and(eq(bookmarks.id, cursor), eq(bookmarks.userId, userId)));
+
+    if (cursorBookmark) {
+      conditions.push(
+        or(
+          lt(bookmarks.createdAt, cursorBookmark.createdAt),
+          and(
+            eq(bookmarks.createdAt, cursorBookmark.createdAt),
+            lt(bookmarks.id, cursor),
+          ),
+        )!,
+      );
+    }
+  }
+
+  const rows = await db
+    .select()
+    .from(bookmarks)
+    .where(and(...conditions))
+    .orderBy(desc(bookmarks.createdAt), desc(bookmarks.id))
+    .limit(limit + 1);
+
+  let nextCursor: string | null = null;
+  if (rows.length > limit) {
+    rows.pop();
+    nextCursor = rows[rows.length - 1].id;
+  }
+
+  const bookmarkIds = rows.map((b) => b.id);
+  if (bookmarkIds.length === 0) return { items: [], nextCursor: null };
+
+  const tagRows = await db
+    .select({
+      bookmarkId: bookmarkTags.bookmarkId,
+      tagId: tags.id,
+      tagName: tags.name,
+      tagColor: tags.color,
+    })
+    .from(bookmarkTags)
+    .innerJoin(tags, eq(bookmarkTags.tagId, tags.id))
+    .where(inArray(bookmarkTags.bookmarkId, bookmarkIds));
+
+  const tagsByBookmark = new Map<
+    string,
+    { id: string; name: string; color: string }[]
+  >();
+  for (const row of tagRows) {
+    const arr = tagsByBookmark.get(row.bookmarkId) ?? [];
+    arr.push({ id: row.tagId, name: row.tagName, color: row.tagColor });
+    tagsByBookmark.set(row.bookmarkId, arr);
+  }
+
+  const items = rows.map((b) => ({
+    ...b,
+    tags: tagsByBookmark.get(b.id) ?? [],
+  }));
+
+  return { items, nextCursor };
+}
+
+export async function getBookmarkCount(
+  filter?: "all" | "favorites" | "archived" | "unread",
+) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  const conditions = [eq(bookmarks.userId, userId)];
+
+  switch (filter) {
+    case "favorites":
+      conditions.push(eq(bookmarks.isFavorite, true));
+      break;
+    case "archived":
+      conditions.push(eq(bookmarks.isArchived, true));
+      break;
+    case "unread":
+      conditions.push(eq(bookmarks.isRead, false));
+      break;
+    default:
+      conditions.push(eq(bookmarks.isArchived, false));
+  }
+
+  const [result] = await db
+    .select({ count: sql<number>`count(*)`.as("count") })
+    .from(bookmarks)
+    .where(and(...conditions));
+
+  return Number(result?.count ?? 0);
 }

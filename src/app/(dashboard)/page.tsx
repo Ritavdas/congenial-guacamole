@@ -1,11 +1,11 @@
 import {
-  getBookmarks,
+  getBookmarkCount,
   getTags,
   getBookmarkStats,
   getRecentBookmarks,
   getUnreadBookmarks,
 } from "@/lib/actions";
-import { FilterableBookmarkList } from "@/components/bookmarks/filterable-bookmark-list";
+import { InfiniteBookmarkList } from "@/components/bookmarks/infinite-bookmark-list";
 import { AddBookmarkDialog } from "@/components/bookmarks/add-bookmark-dialog";
 import { DashboardStats } from "@/components/bookmarks/dashboard-stats";
 import { ReadingQueue } from "@/components/bookmarks/reading-queue";
@@ -14,7 +14,7 @@ import { DailyRecommendations } from "@/components/bookmarks/daily-recommendatio
 import { EnrichmentBanner } from "@/components/bookmarks/enrichment-banner";
 
 export default async function DashboardPage() {
-  let items: Awaited<ReturnType<typeof getBookmarks>> = [];
+  let bookmarkCount: number = 0;
   let tagsList: Awaited<ReturnType<typeof getTags>> = [];
   let stats: Awaited<ReturnType<typeof getBookmarkStats>> | null = null;
   let recentItems: Awaited<ReturnType<typeof getRecentBookmarks>> = [];
@@ -22,13 +22,14 @@ export default async function DashboardPage() {
   let errorMessage = "";
 
   try {
-    [items, tagsList, stats, recentItems, unreadItems] = await Promise.all([
-      getBookmarks("all"),
-      getTags(),
-      getBookmarkStats(),
-      getRecentBookmarks(5),
-      getUnreadBookmarks(3),
-    ]);
+    [bookmarkCount, tagsList, stats, recentItems, unreadItems] =
+      await Promise.all([
+        getBookmarkCount("all"),
+        getTags(),
+        getBookmarkStats(),
+        getRecentBookmarks(5),
+        getUnreadBookmarks(3),
+      ]);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[DashboardPage] Failed to load data:", msg);
@@ -96,10 +97,14 @@ export default async function DashboardPage() {
             All Bookmarks
           </h3>
           <span className="text-sm text-muted-foreground">
-            {items.length} saved
+            {bookmarkCount} saved
           </span>
         </div>
-        <FilterableBookmarkList bookmarks={items} tags={tagsList} />
+        <InfiniteBookmarkList
+          filter="all"
+          tags={tagsList}
+          initialCount={bookmarkCount}
+        />
       </div>
     </div>
   );
