@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Pockaa — Save to Read Later",
-  "version": "1.0.0",
-  "description": "Save any webpage to your Pockaa reading list with one click.",
+  "version": "1.1.0",
+  "description": "Save any webpage to your Pockaa reading list with one click. Tag, organize, and read later.",
   "permissions": ["activeTab", "storage"],
+  "host_permissions": ["https://localhost:3000/*"],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -16,5 +17,12 @@
     "16": "icons/icon16.svg",
     "48": "icons/icon48.svg",
     "128": "icons/icon128.svg"
-  }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://localhost:3000/extension-auth*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
 }
