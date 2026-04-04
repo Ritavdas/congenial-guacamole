@@ -1,9 +1,17 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { Upload, FileText, CheckCircle2, AlertCircle } from "lucide-react";
+import {
+  Upload,
+  FileText,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  Sparkles,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import {
   Card,
   CardContent,
@@ -11,20 +19,27 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { parseTwitterArchiveBookmarks } from "@/lib/import-twitter";
 
-interface ImportResult {
+const CHUNK_SIZE = 100;
+
+interface ImportTotals {
   imported: number;
   skipped: number;
   errors: number;
   total: number;
 }
 
+type Phase = "idle" | "parsing" | "importing" | "done";
+
 export function TwitterImport() {
   const [file, setFile] = useState<File | null>(null);
-  const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState<ImportResult | null>(null);
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [result, setResult] = useState<ImportTotals | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const cancelledRef = useRef(false);
 
   const handleFile = useCallback((f: File) => {
     const name = f.name.toLowerCase();
@@ -34,6 +49,7 @@ export function TwitterImport() {
     }
     setFile(f);
     setResult(null);
+    setPhase("idle");
   }, []);
 
   const handleDrop = useCallback(
@@ -49,33 +65,89 @@ export function TwitterImport() {
   const handleImport = async () => {
     if (!file) return;
 
-    setImporting(true);
+    cancelledRef.current = false;
+    setPhase("parsing");
     setResult(null);
 
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
+    const content = await file.text();
+    const tweets = parseTwitterArchiveBookmarks(content);
 
-      const res = await fetch("/api/import/twitter", {
-        method: "POST",
-        body: formData,
-      });
+    if (tweets.length === 0) {
+      toast.error(
+        "No bookmarks found. Make sure this is the bookmarks.js file from your X data archive.",
+      );
+      setPhase("idle");
+      return;
+    }
 
-      const data = await res.json();
+    // Split into chunks
+    const chunks: (typeof tweets)[] = [];
+    for (let i = 0; i < tweets.length; i += CHUNK_SIZE) {
+      chunks.push(tweets.slice(i, i + CHUNK_SIZE));
+    }
 
-      if (!res.ok) {
-        toast.error(data.error ?? "Import failed");
-        return;
+    setPhase("importing");
+    setProgress({ current: 0, total: tweets.length });
+
+    const totals: ImportTotals = {
+      imported: 0,
+      skipped: 0,
+      errors: 0,
+      total: tweets.length,
+    };
+
+    for (const chunk of chunks) {
+      if (cancelledRef.current) break;
+
+      try {
+        const res = await fetch("/api/import/twitter/batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            bookmarks: chunk.map((t) => ({
+              url: t.url,
+              tweetId: t.tweetId,
+              timestamp: t.timestamp.toISOString(),
+            })),
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          totals.imported += data.imported;
+          totals.skipped += data.skipped;
+          totals.errors += data.errors;
+        } else {
+          totals.errors += chunk.length;
+        }
+      } catch {
+        totals.errors += chunk.length;
       }
 
-      setResult(data as ImportResult);
-      toast.success(`Imported ${data.imported} tweets`);
-    } catch {
-      toast.error("Import failed. Please try again.");
-    } finally {
-      setImporting(false);
+      setProgress((prev) => ({
+        ...prev,
+        current: Math.min(prev.current + chunk.length, prev.total),
+      }));
+    }
+
+    setResult(totals);
+    setPhase("done");
+
+    if (cancelledRef.current) {
+      toast("Import cancelled — already-imported tweets are saved.");
+    } else {
+      toast.success(`Imported ${totals.imported} tweets`);
     }
   };
+
+  const handleCancel = () => {
+    cancelledRef.current = true;
+  };
+
+  const pct =
+    progress.total > 0
+      ? Math.round((progress.current / progress.total) * 100)
+      : 0;
 
   return (
     <Card>
@@ -152,17 +224,40 @@ export function TwitterImport() {
         </div>
 
         {/* Import button */}
-        <Button
-          onClick={handleImport}
-          disabled={!file || importing}
-          className="w-full"
-        >
-          {importing ? "Importing… (this may take a while)" : "Import"}
-        </Button>
+        {phase !== "importing" && phase !== "parsing" && (
+          <Button onClick={handleImport} disabled={!file} className="w-full">
+            Import
+          </Button>
+        )}
+
+        {/* Progress */}
+        {(phase === "parsing" || phase === "importing") && (
+          <div className="space-y-2 rounded-md border p-4 text-sm">
+            <div className="flex items-center justify-between">
+              <p className="flex items-center gap-2 font-medium">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {phase === "parsing"
+                  ? "Parsing file…"
+                  : `Importing: ${progress.current}/${progress.total}…`}
+              </p>
+              {phase === "importing" && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCancel}
+                  className="h-6 px-2"
+                >
+                  Cancel
+                </Button>
+              )}
+            </div>
+            {phase === "importing" && <Progress value={pct} className="h-2" />}
+          </div>
+        )}
 
         {/* Results */}
-        {result && (
-          <div className="space-y-2 rounded-md border p-4 text-sm">
+        {phase === "done" && result && (
+          <div className="space-y-3 rounded-md border p-4 text-sm">
             <div className="flex items-center gap-2 font-medium">
               <CheckCircle2 className="h-4 w-4 text-green-500" />
               Import complete
@@ -182,6 +277,16 @@ export function TwitterImport() {
                 </li>
               )}
             </ul>
+            {result.imported > 0 && (
+              <div className="flex items-center gap-2 rounded-md bg-blue-50 p-2 text-blue-800 dark:bg-blue-950/30 dark:text-blue-200">
+                <Sparkles className="h-4 w-4 shrink-0" />
+                <p className="text-xs">
+                  Imported tweets have placeholder titles. Head to your
+                  bookmarks and click <strong>Fetch Previews</strong> to enrich
+                  them with full metadata.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </CardContent>
