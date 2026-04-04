@@ -12,7 +12,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "db:search-index": "psql $DATABASE_URL -f scripts/add-search-index.sql"
+    "db:search-index": "bun run scripts/add-search-index.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.48",
