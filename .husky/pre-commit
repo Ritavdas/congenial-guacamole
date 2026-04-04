@@ -1,3 +1,5 @@
+export PATH="/opt/homebrew/bin:$PATH"
+
 bunx lint-staged || exit 1
 
 bunx tsc --noEmit || exit 1
