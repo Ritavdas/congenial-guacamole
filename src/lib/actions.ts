@@ -705,3 +705,104 @@ export async function getBookmarkCount(
 
   return Number(result?.count ?? 0);
 }
+
+export async function searchBookmarksPaginated(
+  query: string,
+  cursor?: string,
+  limit: number = 20,
+) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  if (!query.trim()) return { items: [], nextCursor: null };
+
+  const tsVector = sql`to_tsvector('english', coalesce(${bookmarks.title}, '') || ' ' || coalesce(${bookmarks.description}, '') || ' ' || coalesce(${bookmarks.url}, '') || ' ' || coalesce(${bookmarks.content}, ''))`;
+  const tsQuery = sql`plainto_tsquery('english', ${query.trim()})`;
+  const rank = sql<number>`ts_rank(${tsVector}, ${tsQuery})`;
+
+  const conditions = [
+    eq(bookmarks.userId, userId),
+    sql`${tsVector} @@ ${tsQuery}`,
+  ];
+
+  if (cursor) {
+    const [cursorBookmark] = await db
+      .select({ createdAt: bookmarks.createdAt })
+      .from(bookmarks)
+      .where(and(eq(bookmarks.id, cursor), eq(bookmarks.userId, userId)));
+
+    if (cursorBookmark) {
+      conditions.push(
+        or(
+          lt(bookmarks.createdAt, cursorBookmark.createdAt),
+          and(
+            eq(bookmarks.createdAt, cursorBookmark.createdAt),
+            lt(bookmarks.id, cursor),
+          ),
+        )!,
+      );
+    }
+  }
+
+  const rows = await db
+    .select({
+      id: bookmarks.id,
+      userId: bookmarks.userId,
+      url: bookmarks.url,
+      title: bookmarks.title,
+      description: bookmarks.description,
+      ogImage: bookmarks.ogImage,
+      summary: bookmarks.summary,
+      wordCount: bookmarks.wordCount,
+      domain: bookmarks.domain,
+      isRead: bookmarks.isRead,
+      isArchived: bookmarks.isArchived,
+      isFavorite: bookmarks.isFavorite,
+      createdAt: bookmarks.createdAt,
+      updatedAt: bookmarks.updatedAt,
+      rank: rank,
+    })
+    .from(bookmarks)
+    .where(and(...conditions))
+    .orderBy(sql`${rank} DESC`, desc(bookmarks.createdAt), desc(bookmarks.id))
+    .limit(limit + 1);
+
+  let nextCursor: string | null = null;
+  if (rows.length > limit) {
+    rows.pop();
+    nextCursor = rows[rows.length - 1].id;
+  }
+
+  const bookmarkIds = rows.map((b) => b.id);
+  if (bookmarkIds.length === 0) return { items: [], nextCursor: null };
+
+  const tagRows = await db
+    .select({
+      bookmarkId: bookmarkTags.bookmarkId,
+      tagId: tags.id,
+      tagName: tags.name,
+      tagColor: tags.color,
+    })
+    .from(bookmarkTags)
+    .innerJoin(tags, eq(bookmarkTags.tagId, tags.id))
+    .where(inArray(bookmarkTags.bookmarkId, bookmarkIds));
+
+  const tagsByBookmark = new Map<
+    string,
+    { id: string; name: string; color: string }[]
+  >();
+  for (const row of tagRows) {
+    const arr = tagsByBookmark.get(row.bookmarkId) ?? [];
+    arr.push({ id: row.tagId, name: row.tagName, color: row.tagColor });
+    tagsByBookmark.set(row.bookmarkId, arr);
+  }
+
+  const items = rows.map(({ rank: _rank, ...b }) => ({
+    ...b,
+    content: null,
+    htmlContent: null,
+    tags: tagsByBookmark.get(b.id) ?? [],
+  }));
+
+  return { items, nextCursor };
+}
