@@ -19,6 +19,7 @@ export const summarizeSchema = z.object({
 export const extensionSaveSchema = z.object({
   url: urlSchema,
   userId: userIdSchema,
+  tagIds: z.array(z.string().uuid()).optional(),
 });
 
 export const extractSchema = z.object({
