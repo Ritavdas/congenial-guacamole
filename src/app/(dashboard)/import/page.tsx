@@ -1,5 +1,6 @@
 import { PocketImport } from "@/components/import/pocket-import";
 import { TwitterImport } from "@/components/import/twitter-import";
+import { TwitterBookmarksImport } from "@/components/import/twitter-bookmarks-import";
 
 export default function ImportPage() {
   return (
@@ -14,6 +15,7 @@ export default function ImportPage() {
       <div className="grid gap-6 md:grid-cols-2">
         <PocketImport />
         <TwitterImport />
+        <TwitterBookmarksImport />
       </div>
     </div>
   );

@@ -1,0 +1,2 @@
+1. make sure while importing we show a progress bar
+2. I want to see link previews for all the articles I am importing from pocket.
