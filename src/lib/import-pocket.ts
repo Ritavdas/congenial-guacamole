@@ -183,7 +183,9 @@ function parseCsvLines(csv: string): string[][] {
 }
 
 function extractAttr(attrs: string, name: string): string | null {
-  const regex = new RegExp(`${name}="([^"]*)"`, "i");
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // eslint-disable-next-line security/detect-non-literal-regexp
+  const regex = new RegExp(`${escaped}="([^"]*)"`, "i");
   const match = regex.exec(attrs);
   return match ? match[1] : null;
 }

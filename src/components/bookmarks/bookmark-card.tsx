@@ -99,12 +99,13 @@ export const BookmarkCard = memo(
         ) : (
           <div className="relative flex h-40 items-center justify-center overflow-hidden bg-gradient-to-br from-muted/50 to-muted">
             {bookmark.domain && (
-              <img
+              <Image
                 src={`https://www.google.com/s2/favicons?domain=${bookmark.domain}&sz=64`}
                 alt=""
                 width={64}
                 height={64}
                 className="opacity-60"
+                unoptimized
               />
             )}
           </div>
