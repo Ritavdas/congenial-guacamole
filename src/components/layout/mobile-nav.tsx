@@ -3,15 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Bookmark, Star, Archive, Search, Tag, Import } from "lucide-react";
+import { Home, Archive, Search } from "lucide-react";
 
 const navItems = [
-  { href: "/", label: "All", icon: Bookmark },
-  { href: "/favorites", label: "Favorites", icon: Star },
-  { href: "/archive", label: "Archive", icon: Archive },
+  { href: "/", label: "Home", icon: Home },
   { href: "/search", label: "Search", icon: Search },
-  { href: "/tags", label: "Tags", icon: Tag },
-  { href: "/import", label: "Import", icon: Import },
+  { href: "/archive", label: "Archive", icon: Archive },
 ];
 
 export function MobileNav() {

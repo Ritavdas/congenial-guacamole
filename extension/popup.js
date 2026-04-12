@@ -8,67 +8,200 @@ const STORE = {
 let allTags = [];
 let selectedTagIds = new Set();
 let currentUrl = "";
+let currentUserId = "";
+let savedBookmarkId = null;
 
 // ── DOM refs ──
 const $ = (id) => document.getElementById(id);
 
-document.addEventListener("DOMContentLoaded", async () => {
-  const mainEl = $("main");
+// All state view IDs
+const STATE_VIEWS = [
+  "onboarding",
+  "settings",
+  "stateSaving",
+  "stateSaved",
+  "stateExists",
+  "stateError",
+];
 
-  // Load stored credentials
+function showView(viewId) {
+  STATE_VIEWS.forEach((id) => {
+    const el = $(id);
+    if (id === viewId) {
+      el.classList.add("active");
+    } else {
+      el.classList.remove("active");
+    }
+  });
+}
+
+// ── Boot ──
+
+document.addEventListener("DOMContentLoaded", async () => {
   const stored = await chrome.storage.local.get([STORE.userId]);
   const userId = stored[STORE.userId];
 
-  // Get current tab URL
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   currentUrl = tab?.url || "";
 
   if (!userId) {
-    showOnboarding(userId);
+    showOnboarding();
   } else {
-    showMain(userId);
+    currentUserId = userId;
+    await startAutoSave(userId);
   }
 
   // Settings toggle
   $("settingsToggle").addEventListener("click", () => {
     const settingsEl = $("settings");
-    if (settingsEl.classList.contains("hidden")) {
-      showSettings();
+    if (settingsEl.classList.contains("active")) {
+      // Go back to the appropriate main view
+      restoreMainView();
     } else {
-      hideSettings();
+      showSettingsPanel();
     }
+  });
+
+  // Retry button
+  $("retryBtn").addEventListener("click", () => {
+    if (currentUserId) startAutoSave(currentUserId);
+  });
+
+  // Edit tags → opens in Pockaa web UI
+  $("editTagsBtn").addEventListener("click", () => {
+    chrome.tabs.create({ url: `${BASE_URL}/dashboard` });
   });
 });
 
-// ── Screens ──
+// ── Auto-save flow ──
 
-function showOnboarding(existingUserId) {
-  $("onboarding").classList.remove("hidden");
-  $("settings").classList.add("hidden");
-  $("main").classList.add("hidden");
+async function startAutoSave(userId) {
+  if (!currentUrl) {
+    showErrorState("No URL detected", "Open a web page and try again.");
+    return;
+  }
+
+  // Show saving spinner
+  $("savingUrl").textContent = cleanUrl(currentUrl);
+  showView("stateSaving");
+
+  try {
+    // Step 1: Check if URL already exists
+    const checkRes = await fetch(
+      `${BASE_URL}/api/extension/check?url=${encodeURIComponent(currentUrl)}`,
+      { headers: { "X-User-Id": userId } }
+    );
+
+    if (!checkRes.ok) {
+      const errData = await checkRes.json().catch(() => ({}));
+      throw new Error(errData.error || `HTTP ${checkRes.status}`);
+    }
+
+    const checkData = await checkRes.json();
+
+    if (checkData.exists) {
+      // Already saved — show existing bookmark info
+      showExistsState(checkData.bookmark);
+    } else {
+      // New URL — auto-save it
+      const saveRes = await fetch(`${BASE_URL}/api/extension`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: currentUrl, userId }),
+      });
+
+      if (!saveRes.ok) {
+        const errData = await saveRes.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP ${saveRes.status}`);
+      }
+
+      const saveData = await saveRes.json();
+      savedBookmarkId = saveData.bookmark?.id;
+      showSavedState(saveData.bookmark, userId);
+    }
+  } catch (err) {
+    showErrorState(err.message, "Check your connection and try again.");
+  }
+}
+
+// ── State views ──
+
+function showSavedState(bookmark, userId) {
+  const domain = bookmark?.domain || getDomain(currentUrl);
+  $("savedMeta").textContent = `${domain} · just now`;
+
+  const readerId = bookmark?.id;
+  const readerLink = $("openReaderLink");
+  if (readerId) {
+    readerLink.href = `${BASE_URL}/reader/${readerId}`;
+    readerLink.style.display = "block";
+  } else {
+    readerLink.style.display = "none";
+  }
+
+  showView("stateSaved");
+
+  // Load tags and set up tag UI
+  loadTags(userId).then(() => {
+    setupTagUI(userId, bookmark);
+  });
+}
+
+function showExistsState(bookmark) {
+  $("existsTitle").textContent = bookmark.title || getDomain(currentUrl);
+
+  const domain = bookmark.domain || getDomain(currentUrl);
+  const timeAgo = bookmark.createdAt ? formatTimeAgo(bookmark.createdAt) : "";
+  $("existsMeta").textContent = timeAgo
+    ? `${domain} · Saved ${timeAgo}`
+    : domain;
+
+  // Render existing tags (read-only)
+  const tagsContainer = $("existsTags");
+  tagsContainer.innerHTML = "";
+  if (bookmark.tags && bookmark.tags.length > 0) {
+    bookmark.tags.forEach((tag) => {
+      const pill = document.createElement("span");
+      pill.className = "tag-pill readonly selected";
+      pill.style.borderColor = tag.color;
+      pill.style.background = tag.color;
+      pill.style.color = "white";
+      pill.textContent = tag.name;
+      tagsContainer.appendChild(pill);
+    });
+  }
+
+  // Set up action links
+  const readerId = bookmark.id;
+  $("existsReaderLink").href = `${BASE_URL}/reader/${readerId}`;
+  $("existsDashboardLink").href = `${BASE_URL}/dashboard`;
+
+  showView("stateExists");
+}
+
+function showErrorState(errorMsg, hint) {
+  $("errorUrl").textContent = cleanUrl(currentUrl);
+  $("errorMessage").textContent = `${errorMsg}. ${hint || ""}`;
+  showView("stateError");
+}
+
+// ── Onboarding ──
+
+function showOnboarding() {
+  showView("onboarding");
 
   const loginBtn = $("onboardLogin");
   const loginStatusEl = $("loginStatus");
   const loginStepLabel = $("loginStepLabel");
 
-  // Check if already logged in
-  if (existingUserId) {
-    loginStepLabel.innerHTML =
-      '<span class="step-check">✓</span> Account connected';
-    loginStatusEl.textContent = "Already connected.";
-    loginBtn.textContent = "Open Pockaa";
+  // Clone to remove old listeners
+  const newBtn = loginBtn.cloneNode(true);
+  loginBtn.parentNode.replaceChild(newBtn, loginBtn);
 
-    // Already good — go straight to main
-    showMain(existingUserId);
-    return;
-  }
-
-  // Login flow
-  loginBtn.addEventListener("click", async () => {
+  newBtn.addEventListener("click", async () => {
     chrome.tabs.create({ url: `${BASE_URL}/extension-auth` });
     loginStatusEl.textContent = "Waiting for login…";
 
-    // Poll for userId to appear in storage (set by content script)
     const poll = setInterval(async () => {
       const s = await chrome.storage.local.get(STORE.userId);
       if (s[STORE.userId]) {
@@ -76,32 +209,27 @@ function showOnboarding(existingUserId) {
         loginStepLabel.innerHTML =
           '<span class="step-check">✓</span> Account connected';
         loginStatusEl.textContent = "Connected!";
-        setTimeout(() => showMain(s[STORE.userId]), 600);
+        currentUserId = s[STORE.userId];
+        setTimeout(() => startAutoSave(currentUserId), 600);
       }
     }, 1000);
   });
 }
 
-async function showMain(userId) {
-  $("onboarding").classList.add("hidden");
-  $("settings").classList.add("hidden");
-  $("main").classList.remove("hidden");
+// ── Settings ──
 
-  $("currentUrl").textContent = currentUrl || "No URL detected";
+let lastMainView = null;
 
-  await loadTags(userId);
-  setupTagUI(userId);
-  setupSaveButton(userId);
-}
+function showSettingsPanel() {
+  // Remember which view we came from
+  lastMainView = STATE_VIEWS.find((id) => $(id).classList.contains("active"));
 
-function showSettings() {
-  $("main").classList.add("hidden");
-  $("onboarding").classList.add("hidden");
-  $("settings").classList.remove("hidden");
+  showView("settings");
 
   chrome.storage.local.get([STORE.userId], (s) => {
     if (s[STORE.userId]) {
-      $("connectedBadge").textContent = `✓ ${s[STORE.userId].slice(0, 16)}…`;
+      const truncated = s[STORE.userId].slice(0, 16);
+      $("connectedBadge").textContent = `✓ ${truncated}…`;
     }
   });
 
@@ -111,17 +239,20 @@ function showSettings() {
 
   $("logoutBtn").onclick = async () => {
     await chrome.storage.local.remove(STORE.userId);
-    showOnboarding(null);
+    currentUserId = "";
+    lastMainView = null;
+    showOnboarding();
   };
 }
 
-function hideSettings() {
-  $("settings").classList.add("hidden");
-  chrome.storage.local.get([STORE.userId], (s) => {
-    if (s[STORE.userId]) {
-      showMain(s[STORE.userId]);
-    }
-  });
+function restoreMainView() {
+  if (lastMainView && lastMainView !== "settings") {
+    showView(lastMainView);
+  } else if (currentUserId) {
+    startAutoSave(currentUserId);
+  } else {
+    showOnboarding();
+  }
 }
 
 // ── Tags ──
@@ -139,16 +270,16 @@ async function loadTags(userId) {
   }
 }
 
-function setupTagUI(userId) {
+function setupTagUI(userId, bookmark) {
+  selectedTagIds.clear();
   renderQuickTags();
-  setupTagSearch(userId);
+  setupTagSearch(userId, bookmark);
 }
 
 function renderQuickTags() {
   const container = $("quickTags");
   container.innerHTML = "";
 
-  // Top 5 by bookmark count
   const top5 = allTags.slice(0, 5);
   if (top5.length === 0) {
     container.innerHTML =
@@ -157,19 +288,15 @@ function renderQuickTags() {
   }
 
   top5.forEach((tag) => {
-    const pill = createTagPill(tag, true);
-    container.appendChild(pill);
+    container.appendChild(createTagPill(tag, true));
   });
 
-  // Also render any selected tags not in top 5
+  // Render selected tags not in top 5
   const top5Ids = new Set(top5.map((t) => t.id));
   for (const tagId of selectedTagIds) {
     if (!top5Ids.has(tagId)) {
       const tag = allTags.find((t) => t.id === tagId);
-      if (tag) {
-        const pill = createTagPill(tag, true);
-        container.appendChild(pill);
-      }
+      if (tag) container.appendChild(createTagPill(tag, true));
     }
   }
 }
@@ -196,27 +323,49 @@ function createTagPill(tag, toggleable) {
         selectedTagIds.add(tag.id);
       }
       renderQuickTags();
+      applyTagsToBookmark();
     });
   }
 
   return pill;
 }
 
-function setupTagSearch(userId) {
+function applyTagsToBookmark() {
+  if (!savedBookmarkId || !currentUserId) return;
+
+  // Fire-and-forget: update tags on existing bookmark via PATCH
+  fetch(`${BASE_URL}/api/extension`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      bookmarkId: savedBookmarkId,
+      userId: currentUserId,
+      tagIds: Array.from(selectedTagIds),
+    }),
+  }).catch(() => {
+    // Silently fail — tags are optional
+  });
+}
+
+function setupTagSearch(userId, bookmark) {
   const input = $("tagSearch");
   const dropdown = $("tagDropdown");
 
-  input.addEventListener("focus", () => {
+  // Clone to clear old listeners
+  const newInput = input.cloneNode(true);
+  input.parentNode.replaceChild(newInput, input);
+  const freshInput = $("tagSearch");
+
+  freshInput.addEventListener("focus", () => {
     renderDropdown("", userId);
     dropdown.classList.add("open");
   });
 
-  input.addEventListener("input", () => {
-    renderDropdown(input.value.trim(), userId);
+  freshInput.addEventListener("input", () => {
+    renderDropdown(freshInput.value.trim(), userId);
     dropdown.classList.add("open");
   });
 
-  // Close dropdown on outside click
   document.addEventListener("click", (e) => {
     if (!e.target.closest(".tag-search-wrap")) {
       dropdown.classList.remove("open");
@@ -267,6 +416,7 @@ function renderDropdown(query, userId) {
       }
       renderQuickTags();
       renderDropdown($("tagSearch").value.trim(), userId);
+      applyTagsToBookmark();
     });
 
     dropdown.appendChild(opt);
@@ -297,6 +447,7 @@ function renderDropdown(query, userId) {
         $("tagSearch").value = "";
         renderQuickTags();
         dropdown.classList.remove("open");
+        applyTagsToBookmark();
       } catch {
         createOpt.textContent = "Failed to create tag";
       }
@@ -305,70 +456,39 @@ function renderDropdown(query, userId) {
   }
 }
 
-// ── Save ──
-
-function setupSaveButton(userId) {
-  const saveBtn = $("saveBtn");
-
-  // Remove old listeners by cloning
-  const newBtn = saveBtn.cloneNode(true);
-  saveBtn.parentNode.replaceChild(newBtn, saveBtn);
-
-  newBtn.addEventListener("click", async () => {
-    if (!currentUrl) {
-      showStatus("status", "No URL to save", "error");
-      return;
-    }
-
-    newBtn.disabled = true;
-    newBtn.innerHTML = '<span class="spinner"></span>Saving…';
-    $("status").style.display = "none";
-
-    try {
-      const body = {
-        url: currentUrl,
-        userId,
-      };
-
-      if (selectedTagIds.size > 0) {
-        body.tagIds = Array.from(selectedTagIds);
-      }
-
-      const response = await fetch(`${BASE_URL}/api/extension`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || `HTTP ${response.status}`);
-      }
-
-      showStatus("status", "✓ Saved to Pockaa!", "success");
-      newBtn.textContent = "✓ Saved";
-      selectedTagIds.clear();
-      renderQuickTags();
-    } catch (err) {
-      showStatus("status", `Failed: ${err.message}`, "error");
-    } finally {
-      newBtn.disabled = false;
-      setTimeout(() => {
-        newBtn.textContent = "Save to Pockaa";
-      }, 2000);
-    }
-  });
-}
-
 // ── Helpers ──
 
-function showStatus(elementId, message, type) {
-  const el = $(elementId);
-  el.textContent = message;
-  el.className = `status ${type}`;
-  setTimeout(() => {
-    el.style.display = "none";
-  }, 4000);
+function cleanUrl(url) {
+  try {
+    const u = new URL(url);
+    return u.hostname + u.pathname + u.search;
+  } catch {
+    return url;
+  }
+}
+
+function getDomain(url) {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
+}
+
+function formatTimeAgo(dateStr) {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diffMs = now - then;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return "just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return "yesterday";
+  if (diffDays < 30) return `${diffDays} days ago`;
+  return new Date(dateStr).toLocaleDateString();
 }
 
 function escapeHtml(text) {

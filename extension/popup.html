@@ -35,6 +35,98 @@
     /* Content */
     .content { padding: 16px; }
 
+    /* State views — only one visible at a time */
+    .state-view {
+      display: none;
+      animation: fadeIn 0.2s ease;
+    }
+    .state-view.active { display: block; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Saving state */
+    .saving-spinner {
+      font-size: 24px;
+      text-align: center;
+      margin-bottom: 8px;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+    }
+    .saving-wrap { text-align: center; padding: 20px 0 8px; }
+    .saving-label { font-size: 14px; font-weight: 500; color: #555; margin-bottom: 8px; }
+    .saving-url {
+      font-size: 12px; color: #888; word-break: break-all;
+      max-height: 36px; overflow: hidden; line-height: 1.4;
+    }
+
+    /* Saved state (new URL) */
+    .saved-check {
+      text-align: center; font-size: 28px; margin-bottom: 4px;
+      animation: popIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes popIn {
+      0% { transform: scale(0); opacity: 0; }
+      60% { transform: scale(1.2); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .saved-title {
+      text-align: center; font-size: 15px; font-weight: 600;
+      color: #166534; margin-bottom: 12px;
+    }
+
+    /* Bookmark info card */
+    .bookmark-card {
+      background: #f5f5f5; border-radius: 8px; padding: 10px 12px;
+      margin-bottom: 14px; font-size: 12px; color: #555; line-height: 1.5;
+    }
+    .bookmark-card-title {
+      font-size: 13px; font-weight: 500; color: #1a1a1a;
+      margin-bottom: 2px; display: -webkit-box;
+      -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .bookmark-card-meta { color: #888; font-size: 11px; }
+    .bookmark-card-tags {
+      display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px;
+    }
+
+    /* Already saved state */
+    .already-title {
+      font-size: 14px; font-weight: 600; color: #1a1a1a;
+      margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
+    }
+    .action-links { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+    .action-link {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 12px; border-radius: 8px; font-size: 13px;
+      font-weight: 500; color: #6366f1; background: #eef2ff;
+      text-decoration: none; cursor: pointer; border: none;
+      transition: background 0.15s; width: 100%; text-align: left;
+    }
+    .action-link:hover { background: #e0e7ff; }
+    .edit-tags-link {
+      font-size: 12px; color: #6366f1; cursor: pointer;
+      background: none; border: none; padding: 0;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .edit-tags-link:hover { text-decoration: underline; }
+
+    /* Error state */
+    .error-icon { text-align: center; font-size: 28px; margin-bottom: 4px; }
+    .error-title {
+      text-align: center; font-size: 15px; font-weight: 600;
+      color: #991b1b; margin-bottom: 8px;
+    }
+    .error-url {
+      text-align: center; font-size: 12px; color: #888;
+      word-break: break-all; margin-bottom: 6px;
+      max-height: 36px; overflow: hidden; line-height: 1.4;
+    }
+    .error-message {
+      text-align: center; font-size: 12px; color: #991b1b; margin-bottom: 14px;
+    }
+
     /* Onboarding */
     #onboarding { text-align: center; }
     .onboard-step { margin-bottom: 16px; text-align: left; }
@@ -48,9 +140,7 @@
       background: #22c55e; color: white; font-size: 11px;
       margin-right: 6px;
     }
-    .login-hint {
-      font-size: 12px; color: #888; margin-top: 6px;
-    }
+    .login-hint { font-size: 12px; color: #888; margin-top: 6px; }
 
     /* Settings panel */
     .settings-field { margin-bottom: 12px; }
@@ -58,11 +148,6 @@
       display: block; font-size: 12px; font-weight: 500;
       color: #666; margin-bottom: 4px;
     }
-    .settings-field input {
-      width: 100%; padding: 8px 10px; border: 1px solid #ddd;
-      border-radius: 6px; font-size: 13px; outline: none;
-    }
-    .settings-field input:focus { border-color: #6366f1; }
     .connected-badge {
       display: inline-flex; align-items: center; gap: 4px;
       background: #dcfce7; color: #166534; font-size: 12px;
@@ -73,14 +158,6 @@
       background: none; border: none; margin-top: 8px;
     }
     .logout-link:hover { text-decoration: underline; }
-
-    /* Main save view */
-    .url-preview {
-      background: #f0f0f0; border-radius: 8px; padding: 10px 12px;
-      margin-bottom: 14px; font-size: 12px; color: #555;
-      word-break: break-all; max-height: 48px; overflow: hidden;
-      line-height: 1.4;
-    }
 
     /* Tags section */
     .tags-section { margin-bottom: 14px; }
@@ -97,17 +174,9 @@
       cursor: pointer; border: 1.5px solid; transition: all 0.15s;
       user-select: none;
     }
-    .tag-pill.unselected {
-      background: white; opacity: 0.7;
-    }
-    .tag-pill.selected {
-      color: white; opacity: 1;
-    }
-    .tag-pill .remove {
-      font-size: 14px; line-height: 1; margin-left: 2px; cursor: pointer;
-      opacity: 0.7;
-    }
-    .tag-pill .remove:hover { opacity: 1; }
+    .tag-pill.unselected { background: white; opacity: 0.7; }
+    .tag-pill.selected { color: white; opacity: 1; }
+    .tag-pill.readonly { cursor: default; opacity: 1; }
 
     /* Tag search */
     .tag-search-wrap { position: relative; }
@@ -156,13 +225,13 @@
     .btn-outline:hover { background: #eef2ff; }
     .btn-sm { padding: 7px 14px; font-size: 13px; width: auto; }
 
-    /* Status */
-    .status {
-      margin-top: 12px; padding: 10px; border-radius: 6px;
-      font-size: 13px; text-align: center; display: none;
+    /* Reader link in saved view */
+    .reader-link {
+      display: block; text-align: center; margin-top: 10px;
+      font-size: 13px; color: #6366f1; text-decoration: none;
+      font-weight: 500;
     }
-    .status.success { display: block; background: #dcfce7; color: #166534; }
-    .status.error { display: block; background: #fee2e2; color: #991b1b; }
+    .reader-link:hover { text-decoration: underline; }
 
     /* Footer */
     .footer {
@@ -175,12 +244,6 @@
     .footer a:hover { color: #6366f1; }
 
     /* Spinner */
-    .spinner {
-      display: inline-block; width: 14px; height: 14px;
-      border: 2px solid rgba(255,255,255,0.3); border-top-color: white;
-      border-radius: 50%; animation: spin 0.6s linear infinite;
-      vertical-align: middle; margin-right: 6px;
-    }
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* Utility */
@@ -209,13 +272,12 @@
 
   <div class="content">
 
-    <!-- Onboarding (first-time setup) -->
-    <div id="onboarding" class="hidden">
+    <!-- Onboarding (not logged in) -->
+    <div id="onboarding" class="state-view">
       <div style="margin-bottom:16px;text-align:center;">
         <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Welcome to Pockaa</div>
         <div style="font-size:12px;color:#888;">Connect your account to get started.</div>
       </div>
-
       <div class="onboard-step" style="text-align:center;">
         <label id="loginStepLabel">Sign in to link your account</label>
         <button class="btn btn-primary mt-8" id="onboardLogin">Login to Pockaa</button>
@@ -224,9 +286,8 @@
     </div>
 
     <!-- Settings panel -->
-    <div id="settings" class="hidden">
+    <div id="settings" class="state-view">
       <div style="font-size:14px;font-weight:600;margin-bottom:12px;">Settings</div>
-
       <div class="settings-field">
         <label>Account</label>
         <div>
@@ -237,30 +298,59 @@
       </div>
     </div>
 
-    <!-- Main save view -->
-    <div id="main" class="hidden">
-      <div class="url-preview" id="currentUrl"></div>
+    <!-- Saving state -->
+    <div id="stateSaving" class="state-view">
+      <div class="saving-wrap">
+        <div class="saving-spinner">◠</div>
+        <div class="saving-label">Saving…</div>
+        <div class="saving-url" id="savingUrl"></div>
+      </div>
+    </div>
 
-      <!-- Tags -->
+    <!-- Saved state (new URL) — with tag prompt -->
+    <div id="stateSaved" class="state-view">
+      <div class="saved-check">✓</div>
+      <div class="saved-title">Saved!</div>
+      <div class="bookmark-card" id="savedCard">
+        <div class="bookmark-card-meta" id="savedMeta"></div>
+      </div>
+
+      <!-- Tags for new saves -->
       <div class="tags-section">
-        <div class="tags-label">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/>
-            <path d="M7 7h.01"/>
-          </svg>
-          Tags
-        </div>
-
+        <div class="tags-label">Add tags (optional)</div>
         <div class="quick-tags" id="quickTags"></div>
-
         <div class="tag-search-wrap">
-          <input class="tag-search" id="tagSearch" type="text" placeholder="Search or create a tag…" autocomplete="off" />
+          <input class="tag-search" id="tagSearch" type="text" placeholder="🔍 Search or create a tag…" autocomplete="off" />
           <div class="tag-dropdown" id="tagDropdown"></div>
         </div>
       </div>
 
-      <button class="btn btn-primary" id="saveBtn">Save to Pockaa</button>
-      <div class="status" id="status"></div>
+      <a class="reader-link" id="openReaderLink" href="#" target="_blank">Open in Reader →</a>
+    </div>
+
+    <!-- Already saved state -->
+    <div id="stateExists" class="state-view">
+      <div class="already-title">📚 Already in your library</div>
+      <div class="bookmark-card" id="existsCard">
+        <div class="bookmark-card-title" id="existsTitle"></div>
+        <div class="bookmark-card-meta" id="existsMeta"></div>
+        <div class="bookmark-card-tags" id="existsTags"></div>
+      </div>
+
+      <div class="action-links">
+        <a class="action-link" id="existsReaderLink" href="#" target="_blank">📖 Open in Reader</a>
+        <a class="action-link" id="existsDashboardLink" href="#" target="_blank">🔗 Open in Pockaa</a>
+      </div>
+      <button class="edit-tags-link" id="editTagsBtn">Edit tags ›</button>
+    </div>
+
+    <!-- Error state -->
+    <div id="stateError" class="state-view">
+      <div class="error-icon">⚠️</div>
+      <div class="error-title">Couldn't save</div>
+      <div class="error-url" id="errorUrl"></div>
+      <div class="error-message" id="errorMessage"></div>
+      <button class="btn btn-primary" id="retryBtn">🔄 Retry</button>
     </div>
 
   </div>
