@@ -1,3 +1,4 @@
+// @no-test-required — server actions tested via integration tests in __tests__/pipelines/
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
@@ -10,7 +11,17 @@ import {
   bookmarkCollections,
   highlights,
 } from "@/db/schema";
-import { eq, and, desc, ilike, or, sql, inArray, lt, isNull } from "drizzle-orm";
+import {
+  eq,
+  and,
+  desc,
+  ilike,
+  or,
+  sql,
+  inArray,
+  lt,
+  isNull,
+} from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { extractMetadata } from "@/lib/extract";
 
@@ -849,7 +860,10 @@ export async function getTagBuckets() {
   `);
 
   // Index recent bookmarks by tag_id
-  const recentByTag = new Map<string, { title: string | null; domain: string | null; ogImage: string | null }[]>();
+  const recentByTag = new Map<
+    string,
+    { title: string | null; domain: string | null; ogImage: string | null }[]
+  >();
   for (const row of recentRows) {
     let arr = recentByTag.get(row.tag_id);
     if (!arr) {
@@ -898,7 +912,11 @@ export async function getTagBuckets() {
   const untaggedCount = Number(untaggedRow?.count ?? 0);
   const latestUntagged =
     untaggedCount > 0 && untaggedRow
-      ? { title: untaggedRow.latest_title, domain: untaggedRow.latest_domain, ogImage: untaggedRow.latest_og_image }
+      ? {
+          title: untaggedRow.latest_title,
+          domain: untaggedRow.latest_domain,
+          ogImage: untaggedRow.latest_og_image,
+        }
       : null;
 
   return { tagBuckets: buckets, untaggedCount, latestUntagged };
@@ -992,9 +1010,16 @@ export async function getUntaggedBookmarks() {
     .from(bookmarks)
     .leftJoin(bookmarkTags, eq(bookmarks.id, bookmarkTags.bookmarkId))
     .where(
-      and(eq(bookmarks.userId, userId), eq(bookmarks.isArchived, false), isNull(bookmarkTags.bookmarkId)),
+      and(
+        eq(bookmarks.userId, userId),
+        eq(bookmarks.isArchived, false),
+        isNull(bookmarkTags.bookmarkId),
+      ),
     )
     .orderBy(desc(bookmarks.createdAt));
 
-  return rows.map((b) => ({ ...b, tags: [] as { id: string; name: string; color: string }[] }));
+  return rows.map((b) => ({
+    ...b,
+    tags: [] as { id: string; name: string; color: string }[],
+  }));
 }

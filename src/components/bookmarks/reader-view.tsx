@@ -34,6 +34,10 @@ import {
   useHighlighting,
   HighlightToolbar,
 } from "@/components/reader/highlighting";
+import {
+  useDictionaryLookup,
+  DictionaryPopup,
+} from "@/components/reader/dictionary-popup";
 import { TextToSpeech } from "@/components/reader/text-to-speech";
 
 interface ReaderViewProps {
@@ -67,6 +71,12 @@ export function ReaderView({ bookmark, highlights }: ReaderViewProps) {
     dismiss,
     handleMouseUp,
   } = useHighlighting(articleRef, bookmark.id, highlights);
+
+  const {
+    lookup,
+    dismiss: dismissLookup,
+    fetchContext,
+  } = useDictionaryLookup(articleRef);
 
   const readingTime = estimateReadingTime(bookmark.wordCount, bookmark.content);
   const hasHtmlContent = !!bookmark.htmlContent;
@@ -405,6 +415,15 @@ export function ReaderView({ bookmark, highlights }: ReaderViewProps) {
                 pending={pending}
                 onHighlight={createHighlight}
                 onDismiss={dismiss}
+              />
+            )}
+
+            {/* Dictionary popup (appears on double-click) */}
+            {lookup && (
+              <DictionaryPopup
+                lookup={lookup}
+                onDismiss={dismissLookup}
+                onFetchContext={fetchContext}
               />
             )}
 

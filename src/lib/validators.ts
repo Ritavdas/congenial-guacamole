@@ -16,6 +16,11 @@ export const summarizeSchema = z.object({
   title: z.string().optional(),
 });
 
+export const defineContextSchema = z.object({
+  word: z.string().min(1, "word is required").max(100),
+  sentence: z.string().min(1, "sentence is required").max(2000),
+});
+
 export const extensionSaveSchema = z.object({
   url: urlSchema,
   userId: userIdSchema,

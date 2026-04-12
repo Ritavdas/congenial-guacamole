@@ -23,7 +23,7 @@ const HIGHLIGHT_COLORS = [
 function getTextOffset(
   root: Node,
   targetNode: Node,
-  targetOffset: number
+  targetOffset: number,
 ): number {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   let offset = 0;
@@ -32,14 +32,14 @@ function getTextOffset(
     if (node === targetNode) {
       return offset + targetOffset;
     }
-    offset += (node.textContent?.length ?? 0);
+    offset += node.textContent?.length ?? 0;
   }
   return offset;
 }
 
 function findNodeAtOffset(
   root: Node,
-  targetOffset: number
+  targetOffset: number,
 ): { node: Node; offset: number } | null {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   let currentOffset = 0;
@@ -57,40 +57,46 @@ function findNodeAtOffset(
 export function useHighlighting(
   articleRef: React.RefObject<HTMLDivElement | null>,
   bookmarkId: string,
-  existingHighlights: Highlight[]
+  existingHighlights: Highlight[],
 ) {
   const [pending, setPending] = useState<PendingHighlight | null>(null);
   const [highlights, setHighlights] = useState<Highlight[]>(existingHighlights);
 
-  const handleMouseUp = useCallback(() => {
-    const selection = window.getSelection();
-    if (!selection || selection.isCollapsed || !articleRef.current) {
-      return;
-    }
+  const handleMouseUp = useCallback(
+    (e?: React.MouseEvent) => {
+      // Skip double-clicks — those are handled by dictionary lookup
+      if (e && (e as unknown as MouseEvent).detail >= 2) return;
 
-    const range = selection.getRangeAt(0);
-    if (!articleRef.current.contains(range.commonAncestorContainer)) {
-      return;
-    }
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed || !articleRef.current) {
+        return;
+      }
 
-    const text = selection.toString().trim();
-    if (text.length < 3) return;
+      const range = selection.getRangeAt(0);
+      if (!articleRef.current.contains(range.commonAncestorContainer)) {
+        return;
+      }
 
-    const startOffset = getTextOffset(
-      articleRef.current,
-      range.startContainer,
-      range.startOffset
-    );
-    const endOffset = getTextOffset(
-      articleRef.current,
-      range.endContainer,
-      range.endOffset
-    );
+      const text = selection.toString().trim();
+      if (text.length < 3) return;
 
-    const rect = range.getBoundingClientRect();
+      const startOffset = getTextOffset(
+        articleRef.current,
+        range.startContainer,
+        range.startOffset,
+      );
+      const endOffset = getTextOffset(
+        articleRef.current,
+        range.endContainer,
+        range.endOffset,
+      );
 
-    setPending({ text, startOffset, endOffset, rect });
-  }, [articleRef]);
+      const rect = range.getBoundingClientRect();
+
+      setPending({ text, startOffset, endOffset, rect });
+    },
+    [articleRef],
+  );
 
   const createHighlight = useCallback(
     async (color: string) => {
@@ -103,7 +109,7 @@ export function useHighlighting(
           pending.startOffset,
           pending.endOffset,
           undefined,
-          color
+          color,
         );
         setHighlights((prev) => [...prev, highlight]);
         window.getSelection()?.removeAllRanges();
@@ -113,7 +119,7 @@ export function useHighlighting(
         toast.error("Failed to add highlight");
       }
     },
-    [pending, bookmarkId]
+    [pending, bookmarkId],
   );
 
   const dismiss = useCallback(() => {
@@ -138,7 +144,7 @@ export function useHighlighting(
 
     // Sort by startOffset descending so we don't shift offsets
     const sorted = [...highlights].sort(
-      (a, b) => b.startOffset - a.startOffset
+      (a, b) => b.startOffset - a.startOffset,
     );
 
     for (const h of sorted) {
@@ -195,7 +201,7 @@ export function HighlightToolbar({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [onDismiss]);
 
-  const top = pending.rect.top + window.scrollY - 44;
+  const top = pending.rect.top;
   const left = pending.rect.left + pending.rect.width / 2;
 
   return (
@@ -203,10 +209,9 @@ export function HighlightToolbar({
       ref={toolbarRef}
       className="fixed z-50 flex items-center gap-1.5 rounded-lg border bg-popover px-2 py-1.5 shadow-lg"
       style={{
-        top: `${top}px`,
+        top: `${top - 44}px`,
         left: `${left}px`,
         transform: "translateX(-50%)",
-        position: "absolute",
       }}
     >
       {HIGHLIGHT_COLORS.map(({ color, label }) => (

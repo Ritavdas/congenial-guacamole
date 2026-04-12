@@ -1,2 +1,16 @@
 1. make sure while importing we show a progress bar
 2. I want to see link previews for all the articles I am importing from pocket.
+
+--- Reader Page ---
+
+3. [BUG] Text selection toolbar collision — HighlightToolbar in highlighting.tsx has conflicting CSS (className="fixed" but inline style sets position: "absolute"). The toolbar positioning is unreliable and elements collide on text selection. Fix: use consistent positioning and calculate coordinates properly.
+
+4. [FEATURE] Dictionary lookup popup — Apple-style "Look Up" on double-click/double-tap.
+   - Trigger: double-click a word (doesn't conflict with drag-to-highlight)
+   - Popup: small floating card anchored near the word
+   - Content: definition + pronunciation from Free Dictionary API (dictionaryapi.dev, no key needed)
+   - AI context: opt-in "How is it used here?" button that explains the word in the article's context
+   - Dismiss: click outside or Escape; double-clicking another word swaps seamlessly
+   - Goal: users never leave the app to understand what they're reading
+
+5. [FEATURE] [DEFERRED] Chat with page sidebar — A small, aesthetically unique sidebar or floating panel to "chat" with the article content. Users can ask questions about the article, get explanations, or discuss ideas with AI. Could use the existing AI summary infrastructure as a starting point. Design ideas: collapsible side panel, bubble chat UI, or a cute floating orb that expands into a chat window.

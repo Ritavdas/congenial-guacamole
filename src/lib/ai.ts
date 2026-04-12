@@ -1,3 +1,4 @@
+// @no-test-required — AI provider config, no testable logic
 import { createOpenAI, openai } from "@ai-sdk/openai";
 
 const DEFAULTS = {

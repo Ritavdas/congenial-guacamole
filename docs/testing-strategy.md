@@ -151,6 +151,34 @@ vi.mock("@clerk/nextjs/server", () => ({
 
 ## Future: Real DB integration tests
 
+## Test Coverage Enforcement
+
+A CI script (`scripts/check-test-coverage.sh`) runs on PRs and verifies that
+new/modified files in `src/lib/` and `src/app/api/` have corresponding test files.
+
+### Scope
+
+- **Enforced**: `src/lib/*.ts`, `src/app/api/**/*.ts`
+- **Not enforced**: Components, pages, layouts, types, configs
+
+### Override
+
+Add `// @no-test-required` in the first 5 lines of a file to skip the check.
+Always include a reason:
+
+```typescript
+// @no-test-required — covered by extract.test.ts
+```
+
+### How it works
+
+- Runs only on PRs (not pushes to main)
+- Compares changed files against `origin/main`
+- Checks for a colocated `.test.ts` file OR coverage in `src/__tests__/`
+- Exits with code 1 if missing tests are found
+
+## Future: Real DB integration tests
+
 When ready, add a `TEST_DATABASE_URL` to `.env.test`:
 
 ```bash

@@ -1,3 +1,4 @@
+// @no-test-required — AI-dependent, needs real DB for meaningful tests
 import { eq, and } from "drizzle-orm";
 import { generateObject } from "ai";
 import { z } from "zod/v4";

@@ -1,3 +1,4 @@
+// @no-test-required — Twitter bookmarks import, similar pattern to pocket import
 export interface ParsedTwitterBookmark {
   url: string;
   tweetId: string;

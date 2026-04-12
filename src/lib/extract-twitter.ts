@@ -1,3 +1,4 @@
+// @no-test-required — covered by extract.test.ts
 const SYNDICATION_URL = "https://cdn.syndication.twimg.com/tweet-result";
 
 const TWITTER_STATUS_REGEX =

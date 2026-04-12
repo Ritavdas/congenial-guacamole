@@ -1,3 +1,4 @@
+// @no-test-required — Twitter import, similar pattern to pocket import
 export interface ParsedTweet {
   url: string;
   tweetId: string;
