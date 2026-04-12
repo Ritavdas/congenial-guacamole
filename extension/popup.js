@@ -86,38 +86,24 @@ async function startAutoSave(userId) {
   showView("stateSaving");
 
   try {
-    // Step 1: Check if URL already exists
-    const checkRes = await fetch(
-      `${BASE_URL}/api/extension/check?url=${encodeURIComponent(currentUrl)}`,
-      { headers: { "X-User-Id": userId } }
-    );
+    const res = await fetch(`${BASE_URL}/api/extension/save`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: currentUrl, userId }),
+    });
 
-    if (!checkRes.ok) {
-      const errData = await checkRes.json().catch(() => ({}));
-      throw new Error(errData.error || `HTTP ${checkRes.status}`);
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `HTTP ${res.status}`);
     }
 
-    const checkData = await checkRes.json();
+    const data = await res.json();
 
-    if (checkData.exists) {
-      // Already saved — show existing bookmark info
-      showExistsState(checkData.bookmark);
+    if (data.action === "existing") {
+      showExistsState(data.bookmark);
     } else {
-      // New URL — auto-save it
-      const saveRes = await fetch(`${BASE_URL}/api/extension`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: currentUrl, userId }),
-      });
-
-      if (!saveRes.ok) {
-        const errData = await saveRes.json().catch(() => ({}));
-        throw new Error(errData.error || `HTTP ${saveRes.status}`);
-      }
-
-      const saveData = await saveRes.json();
-      savedBookmarkId = saveData.bookmark?.id;
-      showSavedState(saveData.bookmark, userId);
+      savedBookmarkId = data.bookmark?.id;
+      showSavedState(data.bookmark, userId);
     }
   } catch (err) {
     showErrorState(err.message, "Check your connection and try again.");

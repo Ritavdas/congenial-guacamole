@@ -811,86 +811,95 @@ export async function getTagBuckets() {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
 
-  const userTags = await db.select().from(tags).where(eq(tags.userId, userId));
+  // Query 1: All tags with counts and last activity (single query)
+  const tagRows = await db.execute<{
+    id: string;
+    name: string;
+    color: string;
+    created_at: string;
+    bookmark_count: string;
+    last_activity: string | null;
+  }>(sql`
+    SELECT t.id, t.name, t.color, t.created_at,
+           COUNT(bt.bookmark_id) AS bookmark_count,
+           MAX(b.created_at) AS last_activity
+    FROM tags t
+    LEFT JOIN bookmark_tags bt ON bt.tag_id = t.id
+    LEFT JOIN bookmarks b ON bt.bookmark_id = b.id AND b.user_id = ${userId}
+    WHERE t.user_id = ${userId}
+    GROUP BY t.id, t.name, t.color, t.created_at
+    ORDER BY last_activity DESC NULLS LAST
+  `);
 
-  const buckets = await Promise.all(
-    userTags.map(async (tag) => {
-      const tagBookmarks = await db
-        .select({
-          id: bookmarks.id,
-          title: bookmarks.title,
-          domain: bookmarks.domain,
-          createdAt: bookmarks.createdAt,
-        })
-        .from(bookmarkTags)
-        .innerJoin(bookmarks, eq(bookmarkTags.bookmarkId, bookmarks.id))
-        .where(
-          and(
-            eq(bookmarkTags.tagId, tag.id),
-            eq(bookmarks.userId, userId),
-          ),
-        )
-        .orderBy(desc(bookmarks.createdAt))
-        .limit(3);
+  // Query 2: 3 most recent bookmarks per tag via ROW_NUMBER()
+  const recentRows = await db.execute<{
+    tag_id: string;
+    title: string | null;
+    domain: string | null;
+    og_image: string | null;
+  }>(sql`
+    SELECT tag_id, title, domain, og_image FROM (
+      SELECT bt.tag_id, b.title, b.domain, b.og_image, b.created_at,
+             ROW_NUMBER() OVER (PARTITION BY bt.tag_id ORDER BY b.created_at DESC) AS rn
+      FROM bookmark_tags bt
+      INNER JOIN bookmarks b ON bt.bookmark_id = b.id
+      WHERE b.user_id = ${userId}
+    ) ranked
+    WHERE rn <= 3
+  `);
 
-      const [countResult] = await db
-        .select({ count: sql<number>`count(*)`.as("count") })
-        .from(bookmarkTags)
-        .innerJoin(bookmarks, eq(bookmarkTags.bookmarkId, bookmarks.id))
-        .where(
-          and(
-            eq(bookmarkTags.tagId, tag.id),
-            eq(bookmarks.userId, userId),
-          ),
-        );
-
-      return {
-        id: tag.id,
-        name: tag.name,
-        color: tag.color,
-        bookmarkCount: Number(countResult?.count ?? 0),
-        recentTitles: tagBookmarks.map((b) => ({
-          title: b.title,
-          domain: b.domain,
-        })),
-        lastActivity: tagBookmarks[0]?.createdAt ?? tag.createdAt,
-      };
-    }),
-  );
-
-  buckets.sort(
-    (a, b) =>
-      new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime(),
-  );
-
-  // Untagged bookmarks: bookmarks with no entry in bookmarkTags
-  const [untaggedCountResult] = await db
-    .select({ count: sql<number>`count(*)`.as("count") })
-    .from(bookmarks)
-    .leftJoin(bookmarkTags, eq(bookmarks.id, bookmarkTags.bookmarkId))
-    .where(
-      and(eq(bookmarks.userId, userId), eq(bookmarks.isArchived, false), isNull(bookmarkTags.bookmarkId)),
-    );
-
-  const untaggedCount = Number(untaggedCountResult?.count ?? 0);
-
-  let latestUntagged: { title: string | null; domain: string | null } | null =
-    null;
-  if (untaggedCount > 0) {
-    const [latest] = await db
-      .select({
-        title: bookmarks.title,
-        domain: bookmarks.domain,
-      })
-      .from(bookmarks)
-      .leftJoin(bookmarkTags, eq(bookmarks.id, bookmarkTags.bookmarkId))
-      .where(
-        and(eq(bookmarks.userId, userId), eq(bookmarks.isArchived, false), isNull(bookmarkTags.bookmarkId)),
-      )
-      .orderBy(desc(bookmarks.createdAt))
-      .limit(1);
-    latestUntagged = latest ?? null;
+  // Index recent bookmarks by tag_id
+  const recentByTag = new Map<string, { title: string | null; domain: string | null; ogImage: string | null }[]>();
+  for (const row of recentRows) {
+    let arr = recentByTag.get(row.tag_id);
+    if (!arr) {
+      arr = [];
+      recentByTag.set(row.tag_id, arr);
+    }
+    arr.push({ title: row.title, domain: row.domain, ogImage: row.og_image });
   }
+
+  const buckets = tagRows.map((tag) => ({
+    id: tag.id,
+    name: tag.name,
+    color: tag.color,
+    bookmarkCount: Number(tag.bookmark_count),
+    recentTitles: recentByTag.get(tag.id) ?? [],
+    lastActivity: tag.last_activity
+      ? new Date(tag.last_activity)
+      : new Date(tag.created_at),
+  }));
+
+  // Query 3: Untagged count + latest untagged in a single query
+  const [untaggedRow] = await db.execute<{
+    count: string;
+    latest_title: string | null;
+    latest_domain: string | null;
+    latest_og_image: string | null;
+  }>(sql`
+    SELECT COUNT(*) AS count,
+           (SELECT b2.title FROM bookmarks b2
+            LEFT JOIN bookmark_tags bt2 ON b2.id = bt2.bookmark_id
+            WHERE b2.user_id = ${userId} AND b2.is_archived = false AND bt2.bookmark_id IS NULL
+            ORDER BY b2.created_at DESC LIMIT 1) AS latest_title,
+           (SELECT b3.domain FROM bookmarks b3
+            LEFT JOIN bookmark_tags bt3 ON b3.id = bt3.bookmark_id
+            WHERE b3.user_id = ${userId} AND b3.is_archived = false AND bt3.bookmark_id IS NULL
+            ORDER BY b3.created_at DESC LIMIT 1) AS latest_domain,
+           (SELECT b4.og_image FROM bookmarks b4
+            LEFT JOIN bookmark_tags bt4 ON b4.id = bt4.bookmark_id
+            WHERE b4.user_id = ${userId} AND b4.is_archived = false AND bt4.bookmark_id IS NULL
+            ORDER BY b4.created_at DESC LIMIT 1) AS latest_og_image
+    FROM bookmarks b
+    LEFT JOIN bookmark_tags bt ON b.id = bt.bookmark_id
+    WHERE b.user_id = ${userId} AND b.is_archived = false AND bt.bookmark_id IS NULL
+  `);
+
+  const untaggedCount = Number(untaggedRow?.count ?? 0);
+  const latestUntagged =
+    untaggedCount > 0 && untaggedRow
+      ? { title: untaggedRow.latest_title, domain: untaggedRow.latest_domain, ogImage: untaggedRow.latest_og_image }
+      : null;
 
   return { tagBuckets: buckets, untaggedCount, latestUntagged };
 }

@@ -1,18 +1,19 @@
 import Link from "next/link";
+import { BookmarkThumbnail } from "@/components/bookmarks/bookmark-thumbnail";
 
 interface TagBucket {
   id: string;
   name: string;
   color: string;
   bookmarkCount: number;
-  recentTitles: { title: string | null; domain: string | null }[];
+  recentTitles: { title: string | null; domain: string | null; ogImage: string | null }[];
   lastActivity: Date;
 }
 
 interface TagBucketGridProps {
   tagBuckets: TagBucket[];
   untaggedCount: number;
-  latestUntagged: { title: string | null; domain: string | null } | null;
+  latestUntagged: { title: string | null; domain: string | null; ogImage: string | null } | null;
 }
 
 export function TagBucketGrid({
@@ -48,10 +49,19 @@ export function TagBucketGrid({
               />
               {bucket.name}
             </h3>
-            <span className="text-xs text-muted-foreground">
-              {bucket.bookmarkCount} article
-              {bucket.bookmarkCount !== 1 ? "s" : ""}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                {bucket.bookmarkCount} article
+                {bucket.bookmarkCount !== 1 ? "s" : ""}
+              </span>
+              {bucket.recentTitles[0] && (
+                <BookmarkThumbnail
+                  ogImage={bucket.recentTitles[0].ogImage}
+                  domain={bucket.recentTitles[0].domain}
+                  size={48}
+                />
+              )}
+            </div>
           </div>
 
           <ul className="mb-3 space-y-1">
@@ -89,9 +99,16 @@ export function TagBucketGrid({
           </div>
 
           {latestUntagged && (
-            <p className="mb-3 truncate text-sm text-muted-foreground">
-              Latest: &quot;{latestUntagged.title ?? latestUntagged.domain ?? "Untitled"}&quot;
-            </p>
+            <div className="mb-3 flex items-center gap-2">
+              <BookmarkThumbnail
+                ogImage={latestUntagged.ogImage}
+                domain={latestUntagged.domain}
+                size={36}
+              />
+              <p className="min-w-0 truncate text-sm text-muted-foreground">
+                Latest: &quot;{latestUntagged.title ?? latestUntagged.domain ?? "Untitled"}&quot;
+              </p>
+            </div>
           )}
 
           <span className="text-xs font-medium text-primary group-hover:underline">
