@@ -12,7 +12,10 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "db:search-index": "bun run scripts/add-search-index.ts"
+    "db:search-index": "bun run scripts/add-search-index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.48",
@@ -56,7 +59,8 @@
     "lint-staged": "^16.4.0",
     "prettier": "^3.8.1",
     "tailwindcss": "^4",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.4"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [

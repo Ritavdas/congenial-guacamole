@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { bookmarks, tags, bookmarkTags } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { parsePocketExport, parseAlreadyReadJson } from "@/lib/import-pocket";
+import { extractMetadata } from "@/lib/extract";
 
 export async function POST(request: NextRequest) {
   const { userId } = await auth();
@@ -110,6 +111,34 @@ export async function POST(request: NextRequest) {
         errors++;
       }
     }
+
+    // Trigger background enrichment for all newly imported bookmarks
+    after(async () => {
+      for (const id of importedIds) {
+        try {
+          const [bm] = await db
+            .select({ id: bookmarks.id, url: bookmarks.url })
+            .from(bookmarks)
+            .where(eq(bookmarks.id, id));
+
+          if (!bm) continue;
+
+          const metadata = await extractMetadata(bm.url);
+          const updates: Record<string, unknown> = {};
+          if (metadata.description) updates.description = metadata.description;
+          if (metadata.ogImage) updates.ogImage = metadata.ogImage;
+          if (metadata.content) updates.content = metadata.content;
+          if (metadata.htmlContent) updates.htmlContent = metadata.htmlContent;
+          if (metadata.wordCount) updates.wordCount = metadata.wordCount;
+
+          if (Object.keys(updates).length > 0) {
+            await db.update(bookmarks).set(updates).where(eq(bookmarks.id, id));
+          }
+        } catch (err) {
+          console.error(`Enrichment failed for bookmark ${id}:`, err);
+        }
+      }
+    });
 
     return NextResponse.json({
       imported,
