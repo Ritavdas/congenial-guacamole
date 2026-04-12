@@ -33,13 +33,14 @@ export function BookmarkThumbnail({
 
   if (faviconUrl) {
     return (
-      <img
+      <Image
         src={faviconUrl}
         alt=""
         width={size}
         height={size}
         className={`shrink-0 rounded-lg bg-muted p-1.5 ${className}`}
         style={{ width: size, height: size }}
+        unoptimized
       />
     );
   }
