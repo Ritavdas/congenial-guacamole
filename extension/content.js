@@ -9,7 +9,7 @@
 
   chrome.storage.local.set({ pockaa_user_id: userId }, () => {
     const badge = document.createElement("div");
-    badge.textContent = "✓ Extension synced — you can close this tab.";
+    badge.textContent = "✓ Extension connected — closing…";
     badge.style.position = "fixed";
     badge.style.bottom = "24px";
     badge.style.left = "50%";
@@ -23,5 +23,10 @@
     badge.style.zIndex = "9999";
     badge.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)";
     document.body.appendChild(badge);
+
+    // Auto-close the tab after a short delay so the user sees confirmation
+    setTimeout(() => {
+      window.close();
+    }, 1200);
   });
 })();

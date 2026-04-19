@@ -142,6 +142,9 @@ export function useHighlighting(
         }
       });
 
+    // Merge adjacent text nodes after unwrapping marks
+    articleRef.current.normalize();
+
     // Sort by startOffset descending so we don't shift offsets
     const sorted = [...highlights].sort(
       (a, b) => b.startOffset - a.startOffset,

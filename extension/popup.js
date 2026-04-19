@@ -8,8 +8,10 @@ const STORE = {
 let allTags = [];
 let selectedTagIds = new Set();
 let currentUrl = "";
+let currentTitle = "";
 let currentUserId = "";
 let savedBookmarkId = null;
+let dropdownActiveIdx = -1;
 
 // ── DOM refs ──
 const $ = (id) => document.getElementById(id);
@@ -43,6 +45,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   currentUrl = tab?.url || "";
+  currentTitle = tab?.title || "";
 
   if (!userId) {
     showOnboarding();
@@ -69,7 +72,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Edit tags → opens in Pockaa web UI
   $("editTagsBtn").addEventListener("click", () => {
-    chrome.tabs.create({ url: `${BASE_URL}/dashboard` });
+    chrome.tabs.create({ url: `${BASE_URL}/` });
   });
 });
 
@@ -77,7 +80,21 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 async function startAutoSave(userId) {
   if (!currentUrl) {
-    showErrorState("No URL detected", "Open a web page and try again.");
+    showErrorState(
+      "No active page",
+      "Open a web page in this tab and try again.",
+    );
+    return;
+  }
+
+  // Block chrome:// and other unsavable URLs early
+  if (
+    /^(chrome|chrome-extension|edge|about|file|view-source):/i.test(currentUrl)
+  ) {
+    showErrorState(
+      "Can't save this page",
+      "Browser pages and local files can't be saved.",
+    );
     return;
   }
 
@@ -94,7 +111,10 @@ async function startAutoSave(userId) {
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || `HTTP ${res.status}`);
+      const message = errData.error || `HTTP ${res.status}`;
+      const err = new Error(message);
+      err.status = res.status;
+      throw err;
     }
 
     const data = await res.json();
@@ -106,7 +126,26 @@ async function startAutoSave(userId) {
       showSavedState(data.bookmark, userId);
     }
   } catch (err) {
-    showErrorState(err.message, "Check your connection and try again.");
+    if (err.status === 401 || err.status === 403) {
+      showErrorState(
+        "Not signed in",
+        "Your session expired. Re-login from settings.",
+      );
+    } else if (err.status >= 500) {
+      showErrorState(
+        "Server error",
+        "Pockaa is having trouble. Try again shortly.",
+      );
+    } else if (err.status === 400) {
+      showErrorState("Invalid URL", "This page can't be saved.");
+    } else if (
+      err.name === "TypeError" ||
+      /Failed to fetch|NetworkError/i.test(err.message)
+    ) {
+      showErrorState("Offline", "Check your internet connection and retry.");
+    } else {
+      showErrorState(err.message || "Couldn't save", "Try again in a moment.");
+    }
   }
 }
 
@@ -114,12 +153,14 @@ async function startAutoSave(userId) {
 
 function showSavedState(bookmark, userId) {
   const domain = bookmark?.domain || getDomain(currentUrl);
+  const title = bookmark?.title || currentTitle || domain;
+  $("savedTitle").textContent = title;
   $("savedMeta").textContent = `${domain} · just now`;
 
   const readerId = bookmark?.id;
   const readerLink = $("openReaderLink");
   if (readerId) {
-    readerLink.href = `${BASE_URL}/reader/${readerId}`;
+    readerLink.href = `${BASE_URL}/read/${readerId}`;
     readerLink.style.display = "block";
   } else {
     readerLink.style.display = "none";
@@ -159,8 +200,8 @@ function showExistsState(bookmark) {
 
   // Set up action links
   const readerId = bookmark.id;
-  $("existsReaderLink").href = `${BASE_URL}/reader/${readerId}`;
-  $("existsDashboardLink").href = `${BASE_URL}/dashboard`;
+  $("existsReaderLink").href = `${BASE_URL}/read/${readerId}`;
+  $("existsDashboardLink").href = `${BASE_URL}/`;
 
   showView("stateExists");
 }
@@ -184,21 +225,62 @@ function showOnboarding() {
   const newBtn = loginBtn.cloneNode(true);
   loginBtn.parentNode.replaceChild(newBtn, loginBtn);
 
+  // Listen for storage changes for instant pickup (popup-open case)
+  const storageListener = (changes, area) => {
+    if (area !== "local") return;
+    if (changes[STORE.userId] && changes[STORE.userId].newValue) {
+      onLoginDetected(changes[STORE.userId].newValue);
+    }
+  };
+  chrome.storage.onChanged.addListener(storageListener);
+
+  function onLoginDetected(userId) {
+    chrome.storage.onChanged.removeListener(storageListener);
+    loginStepLabel.innerHTML =
+      '<span class="step-check">✓</span> Account connected';
+    loginStatusEl.textContent = "Connected!";
+    newBtn.disabled = true;
+    newBtn.textContent = "Connected";
+    currentUserId = userId;
+    setTimeout(() => startAutoSave(currentUserId), 500);
+  }
+
   newBtn.addEventListener("click", async () => {
-    chrome.tabs.create({ url: `${BASE_URL}/extension-auth` });
+    newBtn.disabled = true;
+    newBtn.textContent = "Opening login…";
     loginStatusEl.textContent = "Waiting for login…";
 
+    const authUrl = `${BASE_URL}/extension-auth`;
+
+    // Reuse existing auth tab if one is already open, otherwise create it
+    try {
+      const existing = await chrome.tabs.query({ url: `${authUrl}*` });
+      if (existing && existing.length > 0) {
+        await chrome.tabs.update(existing[0].id, { active: true });
+        await chrome.windows.update(existing[0].windowId, { focused: true });
+      } else {
+        await chrome.tabs.create({ url: authUrl });
+      }
+    } catch {
+      // Fallback: just create
+      chrome.tabs.create({ url: authUrl });
+    }
+
+    newBtn.textContent = "Login to Pockaa";
+    newBtn.disabled = false;
+
+    // Safety net: also poll in case storage event was missed
+    // (e.g., write happened before listener attached)
     const poll = setInterval(async () => {
       const s = await chrome.storage.local.get(STORE.userId);
       if (s[STORE.userId]) {
         clearInterval(poll);
-        loginStepLabel.innerHTML =
-          '<span class="step-check">✓</span> Account connected';
-        loginStatusEl.textContent = "Connected!";
-        currentUserId = s[STORE.userId];
-        setTimeout(() => startAutoSave(currentUserId), 600);
+        onLoginDetected(s[STORE.userId]);
       }
     }, 1000);
+
+    // Stop polling after 5 minutes to avoid running forever
+    setTimeout(() => clearInterval(poll), 5 * 60 * 1000);
   });
 }
 
@@ -215,12 +297,17 @@ function showSettingsPanel() {
   chrome.storage.local.get([STORE.userId], (s) => {
     if (s[STORE.userId]) {
       const truncated = s[STORE.userId].slice(0, 16);
-      $("connectedBadge").textContent = `✓ ${truncated}…`;
+      $("connectedBadge").textContent = "✓ Connected";
+      $("connectedUserId").textContent = `${truncated}…`;
     }
   });
 
   $("reconnectBtn").onclick = () => {
     chrome.tabs.create({ url: `${BASE_URL}/extension-auth` });
+  };
+
+  $("openDashboardBtn").onclick = () => {
+    chrome.tabs.create({ url: `${BASE_URL}/` });
   };
 
   $("logoutBtn").onclick = async () => {
@@ -343,13 +430,42 @@ function setupTagSearch(userId, bookmark) {
   const freshInput = $("tagSearch");
 
   freshInput.addEventListener("focus", () => {
+    dropdownActiveIdx = -1;
     renderDropdown("", userId);
     dropdown.classList.add("open");
   });
 
   freshInput.addEventListener("input", () => {
+    dropdownActiveIdx = -1;
     renderDropdown(freshInput.value.trim(), userId);
     dropdown.classList.add("open");
+  });
+
+  freshInput.addEventListener("keydown", (e) => {
+    const options = dropdown.querySelectorAll(".tag-option");
+    if (!dropdown.classList.contains("open") || options.length === 0) {
+      if (e.key === "Escape") freshInput.blur();
+      return;
+    }
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      dropdownActiveIdx = (dropdownActiveIdx + 1) % options.length;
+      updateDropdownActive(options);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      dropdownActiveIdx =
+        (dropdownActiveIdx - 1 + options.length) % options.length;
+      updateDropdownActive(options);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const idx = dropdownActiveIdx >= 0 ? dropdownActiveIdx : 0;
+      options[idx]?.click();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      dropdown.classList.remove("open");
+      freshInput.blur();
+    }
   });
 
   document.addEventListener("click", (e) => {
@@ -357,6 +473,16 @@ function setupTagSearch(userId, bookmark) {
       dropdown.classList.remove("open");
     }
   });
+}
+
+function updateDropdownActive(options) {
+  options.forEach((opt, i) => {
+    opt.classList.toggle("active", i === dropdownActiveIdx);
+  });
+  const active = options[dropdownActiveIdx];
+  if (active && active.scrollIntoView) {
+    active.scrollIntoView({ block: "nearest" });
+  }
 }
 
 function renderDropdown(query, userId) {

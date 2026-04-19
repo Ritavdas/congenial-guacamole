@@ -1,26 +1,89 @@
 "use client";
 
+import { memo } from "react";
 import DOMPurify from "isomorphic-dompurify";
 
 const PURIFY_CONFIG = {
   ALLOWED_TAGS: [
-    "article", "section", "div", "p", "br", "hr", "span",
-    "h1", "h2", "h3", "h4", "h5", "h6",
-    "ul", "ol", "li", "dl", "dt", "dd",
-    "strong", "b", "em", "i", "u", "s", "del", "ins",
-    "mark", "small", "sub", "sup", "abbr", "cite", "q",
-    "a", "img", "figure", "figcaption", "picture", "source",
-    "table", "thead", "tbody", "tfoot", "tr", "th", "td", "caption",
-    "pre", "code", "kbd", "samp", "var",
+    "article",
+    "section",
+    "div",
+    "p",
+    "br",
+    "hr",
+    "span",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "ul",
+    "ol",
+    "li",
+    "dl",
+    "dt",
+    "dd",
+    "strong",
+    "b",
+    "em",
+    "i",
+    "u",
+    "s",
+    "del",
+    "ins",
+    "mark",
+    "small",
+    "sub",
+    "sup",
+    "abbr",
+    "cite",
+    "q",
+    "a",
+    "img",
+    "figure",
+    "figcaption",
+    "picture",
+    "source",
+    "table",
+    "thead",
+    "tbody",
+    "tfoot",
+    "tr",
+    "th",
+    "td",
+    "caption",
+    "pre",
+    "code",
+    "kbd",
+    "samp",
+    "var",
     "blockquote",
-    "details", "summary",
+    "details",
+    "summary",
     "time",
   ],
   ALLOWED_ATTR: [
-    "href", "src", "alt", "title", "width", "height",
-    "class", "id", "datetime", "loading", "decoding",
-    "srcset", "sizes", "colspan", "rowspan", "scope",
-    "data-lang", "data-language", "target", "rel",
+    "href",
+    "src",
+    "alt",
+    "title",
+    "width",
+    "height",
+    "class",
+    "id",
+    "datetime",
+    "loading",
+    "decoding",
+    "srcset",
+    "sizes",
+    "colspan",
+    "rowspan",
+    "scope",
+    "data-lang",
+    "data-language",
+    "target",
+    "rel",
   ],
   ALLOW_DATA_ATTR: false,
 };
@@ -30,7 +93,12 @@ interface ArticleContentProps {
   className?: string;
 }
 
-export function ArticleContent({ htmlContent, className }: ArticleContentProps) {
+// Memoized to prevent re-renders from destroying DOM selections and
+// injected highlight <mark> elements when parent state changes.
+export const ArticleContent = memo(function ArticleContent({
+  htmlContent,
+  className,
+}: ArticleContentProps) {
   const clean = DOMPurify.sanitize(htmlContent, PURIFY_CONFIG);
 
   return (
@@ -50,4 +118,4 @@ export function ArticleContent({ htmlContent, className }: ArticleContentProps) 
       dangerouslySetInnerHTML={{ __html: clean }}
     />
   );
-}
+});

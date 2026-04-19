@@ -1,10 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Pockaa — Save to Read Later",
-  "version": "1.1.0",
+  "version": "1.3.0",
   "description": "Save any webpage to your Pockaa reading list with one click. Tag, organize, and read later.",
-  "permissions": ["activeTab", "storage"],
-  "host_permissions": ["https://localhost:3000/*"],
+  "permissions": ["activeTab", "storage", "tabs"],
+  "host_permissions": [
+    "https://pockaa.ritavdas.com/*",
+    "http://localhost:3000/*",
+    "https://localhost:3000/*"
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -20,7 +24,11 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://localhost:3000/extension-auth*"],
+      "matches": [
+        "https://pockaa.ritavdas.com/extension-auth*",
+        "http://localhost:3000/extension-auth*",
+        "https://localhost:3000/extension-auth*"
+      ],
       "js": ["content.js"],
       "run_at": "document_idle"
     }
