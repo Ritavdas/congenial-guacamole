@@ -1,5 +1,7 @@
-// @no-test-required — AI provider config, no testable logic
 import { createOpenAI, openai } from "@ai-sdk/openai";
+
+const AI_PROVIDERS = ["ollama", "openai", "openrouter"] as const;
+type AIProvider = (typeof AI_PROVIDERS)[number];
 
 const DEFAULTS = {
   ollama: {
@@ -9,12 +11,34 @@ const DEFAULTS = {
   openai: {
     model: "gpt-4o-mini",
   },
+  openrouter: {
+    model: "deepseek/deepseek-chat-v3-0324",
+    baseURL: "https://openrouter.ai/api/v1",
+  },
 } as const;
 
-type AIProvider = "ollama" | "openai";
+const DEFAULT_PROVIDER: AIProvider = "openrouter";
+
+function getProvider(): AIProvider {
+  const provider = process.env.AI_PROVIDER;
+
+  return AI_PROVIDERS.includes(provider as AIProvider)
+    ? (provider as AIProvider)
+    : DEFAULT_PROVIDER;
+}
+
+function getRequiredEnv(name: "OPENROUTER_API_KEY") {
+  const value = process.env[name];
+
+  if (!value) {
+    throw new Error(`${name} is required for the OpenRouter provider`);
+  }
+
+  return value;
+}
 
 export function getModel() {
-  const provider = (process.env.AI_PROVIDER ?? "ollama") as AIProvider;
+  const provider = getProvider();
   const modelName = process.env.AI_MODEL ?? DEFAULTS[provider].model;
 
   if (provider === "ollama") {
@@ -23,6 +47,14 @@ export function getModel() {
       apiKey: "ollama", // Ollama doesn't need a real key
     });
     return ollama(modelName);
+  }
+
+  if (provider === "openrouter") {
+    const openrouter = createOpenAI({
+      baseURL: DEFAULTS.openrouter.baseURL,
+      apiKey: getRequiredEnv("OPENROUTER_API_KEY"),
+    });
+    return openrouter(modelName);
   }
 
   return openai(modelName);

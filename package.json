@@ -15,7 +15,10 @@
     "db:search-index": "bun run scripts/add-search-index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test e2e/login.spec.ts",
+    "test:e2e:ui": "playwright test e2e/login.spec.ts --ui",
+    "test:e2e:headed": "playwright test e2e/login.spec.ts --headed"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.48",
@@ -45,11 +48,13 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@clerk/testing": "^2.0.17",
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "dotenv": "^17.3.1",
+    "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",

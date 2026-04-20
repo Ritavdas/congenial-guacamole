@@ -32,6 +32,15 @@ bun-debug.log*
 # env files
 .env
 .env*.local
+.env.test
+
+# playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+e2e/.auth/*
+!e2e/.auth/.gitkeep
 
 # vercel
 .vercel

@@ -41,11 +41,13 @@ cp .env.local.example .env.local
 ```
 
 You'll need:
+
 - **Supabase**: Create a project at [supabase.com](https://supabase.com), copy the Postgres connection string
 - **Clerk**: Create a project at [clerk.com](https://clerk.com), copy the publishable and secret keys
 - **AI Summaries** (choose one):
-  - **Ollama (default, free & local)**: Install [Ollama](https://ollama.com), then run `ollama pull llama3.2:3b` and `ollama serve`
+  - **OpenRouter (default)**: Get an API key at [openrouter.ai](https://openrouter.ai), set `OPENROUTER_API_KEY` in `.env.local`, and leave `AI_PROVIDER=openrouter`
   - **OpenAI**: Get an API key at [platform.openai.com](https://platform.openai.com), set `AI_PROVIDER=openai` in `.env.local`
+  - **Ollama (local)**: Install [Ollama](https://ollama.com), then run `ollama pull llama3.2:3b` and `ollama serve`, and set `AI_PROVIDER=ollama`
 
 ### 3. Set Up Database
 
