@@ -19,6 +19,12 @@ const DEFAULTS = {
 
 const DEFAULT_PROVIDER: AIProvider = "openrouter";
 
+type AIModelConfig = {
+  provider: AIProvider;
+  modelName: string;
+  baseURL: string;
+};
+
 function getProvider(): AIProvider {
   const provider = process.env.AI_PROVIDER;
 
@@ -37,13 +43,39 @@ function getRequiredEnv(name: "OPENROUTER_API_KEY") {
   return value;
 }
 
-export function getModel() {
+export function getModelConfig(): AIModelConfig {
   const provider = getProvider();
   const modelName = process.env.AI_MODEL ?? DEFAULTS[provider].model;
 
   if (provider === "ollama") {
-    const ollama = createOpenAI({
+    return {
+      provider,
+      modelName,
       baseURL: process.env.OLLAMA_BASE_URL ?? DEFAULTS.ollama.baseURL,
+    };
+  }
+
+  if (provider === "openrouter") {
+    return {
+      provider,
+      modelName,
+      baseURL: DEFAULTS.openrouter.baseURL,
+    };
+  }
+
+  return {
+    provider,
+    modelName,
+    baseURL: "https://api.openai.com/v1",
+  };
+}
+
+export function getModel() {
+  const { provider, modelName, baseURL } = getModelConfig();
+
+  if (provider === "ollama") {
+    const ollama = createOpenAI({
+      baseURL,
       apiKey: "ollama", // Ollama doesn't need a real key
     });
     return ollama(modelName);
@@ -51,7 +83,7 @@ export function getModel() {
 
   if (provider === "openrouter") {
     const openrouter = createOpenAI({
-      baseURL: DEFAULTS.openrouter.baseURL,
+      baseURL,
       apiKey: getRequiredEnv("OPENROUTER_API_KEY"),
     });
     return openrouter(modelName);

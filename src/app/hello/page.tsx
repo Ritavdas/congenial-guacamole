@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+import { connection } from "next/server";
+
 export default function HelloPage() {
   return (
     <div
@@ -15,9 +18,18 @@ export default function HelloPage() {
         Pockaa deployment test — this page has no auth, no database, no external
         dependencies.
       </p>
-      <p style={{ color: "#999", fontSize: "0.875rem", marginTop: "1rem" }}>
-        Server rendered at: {new Date().toISOString()}
-      </p>
+      <Suspense fallback={null}>
+        <RenderedAt />
+      </Suspense>
     </div>
+  );
+}
+
+async function RenderedAt() {
+  await connection();
+  return (
+    <p style={{ color: "#999", fontSize: "0.875rem", marginTop: "1rem" }}>
+      Server rendered at: {new Date().toISOString()}
+    </p>
   );
 }

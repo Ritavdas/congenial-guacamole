@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { generateText } from "ai";
-import { getModel } from "@/lib/ai";
+import { getModel, getModelConfig } from "@/lib/ai";
 import { updateBookmarkSummary } from "@/lib/actions";
 import { summarizeSchema } from "@/lib/validators";
 
@@ -16,13 +16,18 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Invalid input", details: parsed.error.issues },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
   const { bookmarkId, content, title } = parsed.data;
 
   try {
+    const aiConfig = getModelConfig();
+    console.log(
+      `[ai:summarize] start userId=${userId} bookmarkId=${bookmarkId} provider=${aiConfig.provider} model=${aiConfig.modelName} baseURL=${aiConfig.baseURL}`,
+    );
+
     const { text: summary } = await generateText({
       model: getModel(),
       prompt: `Summarize the following article in 2-3 concise paragraphs. Focus on the key points and main takeaways.
@@ -34,13 +39,16 @@ ${content}`,
     });
 
     await updateBookmarkSummary(bookmarkId, summary);
+    console.log(
+      `[ai:summarize] success userId=${userId} bookmarkId=${bookmarkId} provider=${aiConfig.provider} model=${aiConfig.modelName}`,
+    );
 
     return NextResponse.json({ summary });
   } catch (error) {
     console.error("Summarization error:", error);
     return NextResponse.json(
       { error: "Failed to generate summary" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

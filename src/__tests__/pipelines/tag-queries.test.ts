@@ -8,6 +8,10 @@ vi.mock("@clerk/nextjs/server", () => ({
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
+  updateTag: vi.fn(),
+  cacheLife: vi.fn(),
+  cacheTag: vi.fn(),
 }));
 
 /** Returns a proxy where every property access returns another proxy (chainable),
@@ -269,75 +273,85 @@ describe("getTagBuckets", () => {
 
 describe("getBookmarksByTag", () => {
   it("returns tag info and bookmarks for a valid tagId", async () => {
-    const tagData = {
+    const tagRecord = {
+      id: "tag-1",
+      user_id: "test-user",
+      name: "tech",
+      color: "#ff0000",
+      created_at: "2024-01-01T00:00:00Z",
+    };
+
+    mockExecute.mockResolvedValueOnce([
+      {
+        tag: tagRecord,
+        bookmarks: [
+          {
+            id: "bk-1",
+            url: "https://example.com/a",
+            title: "Post A",
+            ogImage: null,
+            domain: "example.com",
+            wordCount: null,
+            isFavorite: false,
+            isRead: false,
+            isArchived: false,
+            createdAt: "2024-06-01T00:00:00Z",
+            tags: [{ id: "tag-1", name: "tech", color: "#ff0000" }],
+          },
+          {
+            id: "bk-2",
+            url: "https://example.com/b",
+            title: "Post B",
+            ogImage: null,
+            domain: "example.com",
+            wordCount: null,
+            isFavorite: false,
+            isRead: false,
+            isArchived: false,
+            createdAt: "2024-05-30T00:00:00Z",
+            tags: [{ id: "tag-1", name: "tech", color: "#ff0000" }],
+          },
+        ],
+      },
+    ]);
+
+    const result = await getBookmarksByTag("tag-1");
+
+    expect(result.tag).toEqual({
       id: "tag-1",
       userId: "test-user",
       name: "tech",
       color: "#ff0000",
-      createdAt: new Date("2024-01-01"),
-    };
-    const bk1 = makeBookmarkRow({ id: "bk-1", title: "Post A" });
-    const bk2 = makeBookmarkRow({ id: "bk-2", title: "Post B" });
-
-    // Query 1: find tag
-    mockSelect.mockReturnValueOnce(createQueryChain([tagData]));
-    // Query 2: tagged bookmark IDs
-    mockSelect.mockReturnValueOnce(
-      createQueryChain([{ bookmarkId: "bk-1" }, { bookmarkId: "bk-2" }]),
-    );
-    // Query 3: bookmark rows
-    mockSelect.mockReturnValueOnce(createQueryChain([bk1, bk2]));
-    // Query 4: tags for those bookmarks
-    mockSelect.mockReturnValueOnce(
-      createQueryChain([
-        {
-          bookmarkId: "bk-1",
-          tagId: "tag-1",
-          tagName: "tech",
-          tagColor: "#ff0000",
-        },
-        {
-          bookmarkId: "bk-2",
-          tagId: "tag-1",
-          tagName: "tech",
-          tagColor: "#ff0000",
-        },
-      ]),
-    );
-
-    const result = await getBookmarksByTag("tag-1");
-
-    expect(result.tag).toEqual(tagData);
+      createdAt: new Date("2024-01-01T00:00:00Z"),
+    });
     expect(result.bookmarks).toHaveLength(2);
     expect(result.bookmarks[0].tags).toEqual([
       { id: "tag-1", name: "tech", color: "#ff0000" },
     ]);
+    expect(result.bookmarks[0].createdAt).toEqual(
+      new Date("2024-06-01T00:00:00Z"),
+    );
   });
 
   it("returns tag + empty bookmarks array when tag has no bookmarks", async () => {
-    const tagData = {
+    const tagRecord = {
       id: "tag-empty",
-      userId: "test-user",
+      user_id: "test-user",
       name: "empty",
       color: "#000",
-      createdAt: new Date("2024-01-01"),
+      created_at: "2024-01-01T00:00:00Z",
     };
 
-    // Query 1: find tag
-    mockSelect.mockReturnValueOnce(createQueryChain([tagData]));
-    // Query 2: no tagged bookmark IDs
-    mockSelect.mockReturnValueOnce(createQueryChain([]));
-    // Queries 3 & 4 are skipped by the early return in source code
+    mockExecute.mockResolvedValueOnce([{ tag: tagRecord, bookmarks: [] }]);
 
     const result = await getBookmarksByTag("tag-empty");
 
-    expect(result.tag).toEqual(tagData);
+    expect(result.tag.id).toBe("tag-empty");
     expect(result.bookmarks).toEqual([]);
   });
 
   it('throws "Tag not found" for invalid tagId', async () => {
-    // Query 1: tag not found
-    mockSelect.mockReturnValueOnce(createQueryChain([]));
+    mockExecute.mockResolvedValueOnce([{ tag: null, bookmarks: [] }]);
 
     await expect(getBookmarksByTag("nonexistent")).rejects.toThrow(
       "Tag not found",

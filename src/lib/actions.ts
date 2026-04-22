@@ -22,8 +22,20 @@ import {
   lt,
   isNull,
 } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag as updateCacheTag } from "next/cache";
 import { extractMetadata } from "@/lib/extract";
+import {
+  getTagsCached,
+  getTagsWithCountCached,
+  getBookmarkByIdCached,
+  getBookmarkCountCached,
+  getRecentBookmarksCached,
+  getUnreadBookmarksCached,
+  getTagBucketsCached,
+  getBookmarksByTagCached,
+  getUntaggedBookmarksCached,
+  type CountFilter,
+} from "@/lib/cached";
 
 export async function addBookmark(url: string) {
   const { userId } = await auth();
@@ -47,8 +59,30 @@ export async function addBookmark(url: string) {
     .returning();
 
   revalidatePath("/");
+  updateCacheTag(`user:${userId}:bookmarks`);
+  updateCacheTag(`user:${userId}:tags`);
+  updateCacheTag(`user:${userId}:counts`);
+  updateCacheTag(`user:${userId}:untagged`);
   return bookmark;
 }
+
+// Lean projection: every column from `bookmarks` except the heavy reader-only
+// fields (content, htmlContent, summary). List views never render those.
+const bookmarkLeanCols = {
+  id: bookmarks.id,
+  userId: bookmarks.userId,
+  url: bookmarks.url,
+  title: bookmarks.title,
+  description: bookmarks.description,
+  ogImage: bookmarks.ogImage,
+  wordCount: bookmarks.wordCount,
+  domain: bookmarks.domain,
+  isRead: bookmarks.isRead,
+  isArchived: bookmarks.isArchived,
+  isFavorite: bookmarks.isFavorite,
+  createdAt: bookmarks.createdAt,
+  updatedAt: bookmarks.updatedAt,
+} as const;
 
 export async function getBookmarks(
   filter?: "all" | "favorites" | "archived" | "unread",
@@ -82,7 +116,7 @@ export async function getBookmarks(
   }
 
   const rows = await db
-    .select()
+    .select(bookmarkLeanCols)
     .from(bookmarks)
     .where(and(...conditions))
     .orderBy(desc(bookmarks.createdAt));
@@ -134,6 +168,9 @@ export async function toggleBookmarkFavorite(id: string) {
     .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)));
 
   revalidatePath("/");
+  updateCacheTag(`user:${userId}:bookmarks`);
+  updateCacheTag(`user:${userId}:counts`);
+  updateCacheTag(`bookmark:${id}`);
 }
 
 export async function toggleBookmarkArchive(id: string) {
@@ -153,6 +190,9 @@ export async function toggleBookmarkArchive(id: string) {
     .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)));
 
   revalidatePath("/");
+  updateCacheTag(`user:${userId}:bookmarks`);
+  updateCacheTag(`user:${userId}:counts`);
+  updateCacheTag(`bookmark:${id}`);
 }
 
 export async function toggleBookmarkRead(id: string) {
@@ -172,6 +212,8 @@ export async function toggleBookmarkRead(id: string) {
     .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)));
 
   revalidatePath("/");
+  updateCacheTag(`user:${userId}:bookmarks`);
+  updateCacheTag(`bookmark:${id}`);
 }
 
 export async function deleteBookmark(id: string) {
@@ -183,6 +225,11 @@ export async function deleteBookmark(id: string) {
     .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)));
 
   revalidatePath("/");
+  updateCacheTag(`user:${userId}:bookmarks`);
+  updateCacheTag(`user:${userId}:counts`);
+  updateCacheTag(`user:${userId}:untagged`);
+  updateCacheTag(`user:${userId}:tags`);
+  updateCacheTag(`bookmark:${id}`);
 }
 
 export async function searchBookmarks(query: string) {
@@ -242,13 +289,7 @@ export async function searchBookmarks(query: string) {
 export async function getBookmarkById(id: string) {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
-
-  const [bookmark] = await db
-    .select()
-    .from(bookmarks)
-    .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)));
-
-  return bookmark ?? null;
+  return getBookmarkByIdCached(userId, id);
 }
 
 export async function updateBookmarkSummary(id: string, summary: string) {
@@ -261,6 +302,7 @@ export async function updateBookmarkSummary(id: string, summary: string) {
     .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)));
 
   revalidatePath(`/read/${id}`);
+  updateCacheTag(`bookmark:${id}`);
 }
 
 // Tag actions
@@ -274,14 +316,14 @@ export async function createTag(name: string, color?: string) {
     .returning();
 
   revalidatePath("/tags");
+  updateCacheTag(`user:${userId}:tags`);
   return tag;
 }
 
 export async function getTags() {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
-
-  return db.select().from(tags).where(eq(tags.userId, userId));
+  return getTagsCached(userId);
 }
 
 export async function updateTag(tagId: string, name: string, color: string) {
@@ -298,6 +340,8 @@ export async function updateTag(tagId: string, name: string, color: string) {
 
   revalidatePath("/tags");
   revalidatePath("/");
+  updateCacheTag(`user:${userId}:tags`);
+  updateCacheTag(`tag:${tagId}`);
   return updated;
 }
 
@@ -309,6 +353,9 @@ export async function deleteTag(tagId: string) {
 
   revalidatePath("/tags");
   revalidatePath("/");
+  updateCacheTag(`user:${userId}:tags`);
+  updateCacheTag(`tag:${tagId}`);
+  updateCacheTag(`user:${userId}:bookmarks`);
 }
 
 export async function getTagsForBookmark(bookmarkId: string) {
@@ -331,26 +378,7 @@ export async function getTagsForBookmark(bookmarkId: string) {
 export async function getTagsWithCount() {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
-
-  const userTags = await db.select().from(tags).where(eq(tags.userId, userId));
-  if (userTags.length === 0) return [];
-
-  const tagIds = userTags.map((t) => t.id);
-  const counts = await db
-    .select({
-      tagId: bookmarkTags.tagId,
-      count: sql<number>`count(*)`.as("count"),
-    })
-    .from(bookmarkTags)
-    .where(inArray(bookmarkTags.tagId, tagIds))
-    .groupBy(bookmarkTags.tagId);
-
-  const countMap = new Map(counts.map((c) => [c.tagId, Number(c.count)]));
-
-  return userTags.map((t) => ({
-    ...t,
-    bookmarkCount: countMap.get(t.id) ?? 0,
-  }));
+  return getTagsWithCountCached(userId);
 }
 
 export async function addTagToBookmark(bookmarkId: string, tagId: string) {
@@ -376,6 +404,11 @@ export async function addTagToBookmark(bookmarkId: string, tagId: string) {
     .onConflictDoNothing();
 
   revalidatePath("/");
+  updateCacheTag(`tag:${tagId}`);
+  updateCacheTag(`user:${userId}:bookmarks`);
+  updateCacheTag(`user:${userId}:tags`);
+  updateCacheTag(`user:${userId}:untagged`);
+  updateCacheTag(`bookmark:${bookmarkId}`);
 }
 
 export async function removeTagFromBookmark(bookmarkId: string, tagId: string) {
@@ -399,6 +432,11 @@ export async function removeTagFromBookmark(bookmarkId: string, tagId: string) {
     );
 
   revalidatePath("/");
+  updateCacheTag(`tag:${tagId}`);
+  updateCacheTag(`user:${userId}:bookmarks`);
+  updateCacheTag(`user:${userId}:tags`);
+  updateCacheTag(`user:${userId}:untagged`);
+  updateCacheTag(`bookmark:${bookmarkId}`);
 }
 
 // Collection actions
@@ -473,6 +511,7 @@ export async function addHighlight(
     .returning();
 
   revalidatePath(`/read/${bookmarkId}`);
+  updateCacheTag(`bookmark:${bookmarkId}`);
   return highlight;
 }
 
@@ -535,59 +574,13 @@ export async function getBookmarkStats() {
 export async function getRecentBookmarks(limit = 5) {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
-
-  const rows = await db
-    .select()
-    .from(bookmarks)
-    .where(and(eq(bookmarks.userId, userId), eq(bookmarks.isArchived, false)))
-    .orderBy(desc(bookmarks.createdAt))
-    .limit(limit);
-
-  if (rows.length === 0) return [];
-
-  const bookmarkIds = rows.map((b) => b.id);
-  const tagRows = await db
-    .select({
-      bookmarkId: bookmarkTags.bookmarkId,
-      tagId: tags.id,
-      tagName: tags.name,
-      tagColor: tags.color,
-    })
-    .from(bookmarkTags)
-    .innerJoin(tags, eq(bookmarkTags.tagId, tags.id))
-    .where(inArray(bookmarkTags.bookmarkId, bookmarkIds));
-
-  const tagsByBookmark = new Map<
-    string,
-    { id: string; name: string; color: string }[]
-  >();
-  for (const row of tagRows) {
-    const arr = tagsByBookmark.get(row.bookmarkId) ?? [];
-    arr.push({ id: row.tagId, name: row.tagName, color: row.tagColor });
-    tagsByBookmark.set(row.bookmarkId, arr);
-  }
-
-  return rows.map((b) => ({ ...b, tags: tagsByBookmark.get(b.id) ?? [] }));
+  return getRecentBookmarksCached(userId, limit);
 }
 
 export async function getUnreadBookmarks(limit = 6) {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
-
-  const rows = await db
-    .select()
-    .from(bookmarks)
-    .where(
-      and(
-        eq(bookmarks.userId, userId),
-        eq(bookmarks.isRead, false),
-        eq(bookmarks.isArchived, false),
-      ),
-    )
-    .orderBy(desc(bookmarks.createdAt))
-    .limit(limit);
-
-  return rows;
+  return getUnreadBookmarksCached(userId, limit);
 }
 
 export async function getBookmarksPaginated(
@@ -643,7 +636,7 @@ export async function getBookmarksPaginated(
   }
 
   const rows = await db
-    .select()
+    .select(bookmarkLeanCols)
     .from(bookmarks)
     .where(and(...conditions))
     .orderBy(desc(bookmarks.createdAt), desc(bookmarks.id))
@@ -687,34 +680,10 @@ export async function getBookmarksPaginated(
   return { items, nextCursor };
 }
 
-export async function getBookmarkCount(
-  filter?: "all" | "favorites" | "archived" | "unread",
-) {
+export async function getBookmarkCount(filter?: CountFilter) {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
-
-  const conditions = [eq(bookmarks.userId, userId)];
-
-  switch (filter) {
-    case "favorites":
-      conditions.push(eq(bookmarks.isFavorite, true));
-      break;
-    case "archived":
-      conditions.push(eq(bookmarks.isArchived, true));
-      break;
-    case "unread":
-      conditions.push(eq(bookmarks.isRead, false));
-      break;
-    default:
-      conditions.push(eq(bookmarks.isArchived, false));
-  }
-
-  const [result] = await db
-    .select({ count: sql<number>`count(*)`.as("count") })
-    .from(bookmarks)
-    .where(and(...conditions));
-
-  return Number(result?.count ?? 0);
+  return getBookmarkCountCached(userId, filter);
 }
 
 export async function searchBookmarksPaginated(
@@ -821,205 +790,17 @@ export async function searchBookmarksPaginated(
 export async function getTagBuckets() {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
-
-  // Query 1: All tags with counts and last activity (single query)
-  const tagRows = await db.execute<{
-    id: string;
-    name: string;
-    color: string;
-    created_at: string;
-    bookmark_count: string;
-    last_activity: string | null;
-  }>(sql`
-    SELECT t.id, t.name, t.color, t.created_at,
-           COUNT(bt.bookmark_id) AS bookmark_count,
-           MAX(b.created_at) AS last_activity
-    FROM tags t
-    LEFT JOIN bookmark_tags bt ON bt.tag_id = t.id
-    LEFT JOIN bookmarks b ON bt.bookmark_id = b.id AND b.user_id = ${userId}
-    WHERE t.user_id = ${userId}
-    GROUP BY t.id, t.name, t.color, t.created_at
-    ORDER BY last_activity DESC NULLS LAST
-  `);
-
-  // Query 2: 3 most recent bookmarks per tag via ROW_NUMBER()
-  const recentRows = await db.execute<{
-    tag_id: string;
-    title: string | null;
-    domain: string | null;
-    og_image: string | null;
-  }>(sql`
-    SELECT tag_id, title, domain, og_image FROM (
-      SELECT bt.tag_id, b.title, b.domain, b.og_image, b.created_at,
-             ROW_NUMBER() OVER (PARTITION BY bt.tag_id ORDER BY b.created_at DESC) AS rn
-      FROM bookmark_tags bt
-      INNER JOIN bookmarks b ON bt.bookmark_id = b.id
-      WHERE b.user_id = ${userId}
-    ) ranked
-    WHERE rn <= 3
-  `);
-
-  // Index recent bookmarks by tag_id
-  const recentByTag = new Map<
-    string,
-    { title: string | null; domain: string | null; ogImage: string | null }[]
-  >();
-  for (const row of recentRows) {
-    let arr = recentByTag.get(row.tag_id);
-    if (!arr) {
-      arr = [];
-      recentByTag.set(row.tag_id, arr);
-    }
-    arr.push({ title: row.title, domain: row.domain, ogImage: row.og_image });
-  }
-
-  const buckets = tagRows.map((tag) => ({
-    id: tag.id,
-    name: tag.name,
-    color: tag.color,
-    bookmarkCount: Number(tag.bookmark_count),
-    recentTitles: recentByTag.get(tag.id) ?? [],
-    lastActivity: tag.last_activity
-      ? new Date(tag.last_activity)
-      : new Date(tag.created_at),
-  }));
-
-  // Query 3: Untagged count + latest untagged in a single query
-  const [untaggedRow] = await db.execute<{
-    count: string;
-    latest_title: string | null;
-    latest_domain: string | null;
-    latest_og_image: string | null;
-  }>(sql`
-    SELECT COUNT(*) AS count,
-           (SELECT b2.title FROM bookmarks b2
-            LEFT JOIN bookmark_tags bt2 ON b2.id = bt2.bookmark_id
-            WHERE b2.user_id = ${userId} AND b2.is_archived = false AND bt2.bookmark_id IS NULL
-            ORDER BY b2.created_at DESC LIMIT 1) AS latest_title,
-           (SELECT b3.domain FROM bookmarks b3
-            LEFT JOIN bookmark_tags bt3 ON b3.id = bt3.bookmark_id
-            WHERE b3.user_id = ${userId} AND b3.is_archived = false AND bt3.bookmark_id IS NULL
-            ORDER BY b3.created_at DESC LIMIT 1) AS latest_domain,
-           (SELECT b4.og_image FROM bookmarks b4
-            LEFT JOIN bookmark_tags bt4 ON b4.id = bt4.bookmark_id
-            WHERE b4.user_id = ${userId} AND b4.is_archived = false AND bt4.bookmark_id IS NULL
-            ORDER BY b4.created_at DESC LIMIT 1) AS latest_og_image
-    FROM bookmarks b
-    LEFT JOIN bookmark_tags bt ON b.id = bt.bookmark_id
-    WHERE b.user_id = ${userId} AND b.is_archived = false AND bt.bookmark_id IS NULL
-  `);
-
-  const untaggedCount = Number(untaggedRow?.count ?? 0);
-  const latestUntagged =
-    untaggedCount > 0 && untaggedRow
-      ? {
-          title: untaggedRow.latest_title,
-          domain: untaggedRow.latest_domain,
-          ogImage: untaggedRow.latest_og_image,
-        }
-      : null;
-
-  return { tagBuckets: buckets, untaggedCount, latestUntagged };
+  return getTagBucketsCached(userId);
 }
 
 export async function getBookmarksByTag(tagId: string) {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
-
-  const [tag] = await db
-    .select()
-    .from(tags)
-    .where(and(eq(tags.id, tagId), eq(tags.userId, userId)));
-  if (!tag) throw new Error("Tag not found");
-
-  const taggedIds = await db
-    .select({ bookmarkId: bookmarkTags.bookmarkId })
-    .from(bookmarkTags)
-    .where(eq(bookmarkTags.tagId, tagId));
-
-  if (taggedIds.length === 0) return { tag, bookmarks: [] };
-
-  const rows = await db
-    .select()
-    .from(bookmarks)
-    .where(
-      and(
-        eq(bookmarks.userId, userId),
-        inArray(
-          bookmarks.id,
-          taggedIds.map((b) => b.bookmarkId),
-        ),
-      ),
-    )
-    .orderBy(desc(bookmarks.createdAt));
-
-  // Fetch tags for each bookmark
-  const bookmarkIds = rows.map((b) => b.id);
-  const tagRows = await db
-    .select({
-      bookmarkId: bookmarkTags.bookmarkId,
-      tagId: tags.id,
-      tagName: tags.name,
-      tagColor: tags.color,
-    })
-    .from(bookmarkTags)
-    .innerJoin(tags, eq(bookmarkTags.tagId, tags.id))
-    .where(inArray(bookmarkTags.bookmarkId, bookmarkIds));
-
-  const tagsByBookmark = new Map<
-    string,
-    { id: string; name: string; color: string }[]
-  >();
-  for (const row of tagRows) {
-    const arr = tagsByBookmark.get(row.bookmarkId) ?? [];
-    arr.push({ id: row.tagId, name: row.tagName, color: row.tagColor });
-    tagsByBookmark.set(row.bookmarkId, arr);
-  }
-
-  const result = rows.map((b) => ({
-    ...b,
-    tags: tagsByBookmark.get(b.id) ?? [],
-  }));
-
-  return { tag, bookmarks: result };
+  return getBookmarksByTagCached(userId, tagId);
 }
 
 export async function getUntaggedBookmarks() {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
-
-  const rows = await db
-    .select({
-      id: bookmarks.id,
-      userId: bookmarks.userId,
-      url: bookmarks.url,
-      title: bookmarks.title,
-      description: bookmarks.description,
-      ogImage: bookmarks.ogImage,
-      content: bookmarks.content,
-      htmlContent: bookmarks.htmlContent,
-      summary: bookmarks.summary,
-      wordCount: bookmarks.wordCount,
-      domain: bookmarks.domain,
-      isRead: bookmarks.isRead,
-      isArchived: bookmarks.isArchived,
-      isFavorite: bookmarks.isFavorite,
-      createdAt: bookmarks.createdAt,
-      updatedAt: bookmarks.updatedAt,
-    })
-    .from(bookmarks)
-    .leftJoin(bookmarkTags, eq(bookmarks.id, bookmarkTags.bookmarkId))
-    .where(
-      and(
-        eq(bookmarks.userId, userId),
-        eq(bookmarks.isArchived, false),
-        isNull(bookmarkTags.bookmarkId),
-      ),
-    )
-    .orderBy(desc(bookmarks.createdAt));
-
-  return rows.map((b) => ({
-    ...b,
-    tags: [] as { id: string; name: string; color: string }[],
-  }));
+  return getUntaggedBookmarksCached(userId);
 }

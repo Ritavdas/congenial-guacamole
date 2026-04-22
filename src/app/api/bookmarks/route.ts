@@ -24,9 +24,7 @@ export async function GET(request: NextRequest) {
       limit,
     );
 
-    const lightItems = items.map(({ content, htmlContent, ...rest }) => rest);
-
-    return NextResponse.json({ items: lightItems, nextCursor });
+    return NextResponse.json({ items, nextCursor });
   } catch (error) {
     if (error instanceof Error && error.message === "Unauthorized") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
