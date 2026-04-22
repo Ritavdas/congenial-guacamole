@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
-import { bookmarks, bookmarkTags, tags } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { getBookmarkByUrlCached } from "@/lib/cached";
 
 function getUserId(request: NextRequest): string | null {
   return request.headers.get("x-user-id") || null;
@@ -38,44 +36,14 @@ export async function GET(request: NextRequest) {
   }
 
   const normalized = normalizeUrl(url);
-
-  // Case-insensitive match with trailing slash normalization
-  const [bookmark] = await db
-    .select({
-      id: bookmarks.id,
-      title: bookmarks.title,
-      domain: bookmarks.domain,
-      createdAt: bookmarks.createdAt,
-    })
-    .from(bookmarks)
-    .where(
-      and(
-        eq(bookmarks.userId, userId),
-        sql`lower(regexp_replace(${bookmarks.url}, '/+$', '')) = ${normalized}`,
-      ),
-    )
-    .limit(1);
+  const bookmark = await getBookmarkByUrlCached(userId, normalized);
 
   if (!bookmark) {
     return NextResponse.json({ exists: false });
   }
 
-  // Fetch associated tags
-  const associatedTags = await db
-    .select({
-      id: tags.id,
-      name: tags.name,
-      color: tags.color,
-    })
-    .from(bookmarkTags)
-    .innerJoin(tags, eq(bookmarkTags.tagId, tags.id))
-    .where(eq(bookmarkTags.bookmarkId, bookmark.id));
-
   return NextResponse.json({
     exists: true,
-    bookmark: {
-      ...bookmark,
-      tags: associatedTags,
-    },
+    bookmark,
   });
 }

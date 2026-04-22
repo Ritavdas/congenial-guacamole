@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { eq, and } from "drizzle-orm";
+import { revalidateTag } from "next/cache";
 import { db } from "@/db";
 import { bookmarks, bookmarkTags } from "@/db/schema";
 import { extractMetadata } from "@/lib/extract";
@@ -41,6 +42,13 @@ export async function POST(request: NextRequest) {
         .insert(bookmarkTags)
         .values(tagIds.map((tagId) => ({ bookmarkId: bookmark.id, tagId })))
         .onConflictDoNothing();
+    }
+
+    revalidateTag(`user:${userId}:bookmarks`, "max");
+    revalidateTag(`user:${userId}:url-check`, "max");
+    revalidateTag(`user:${userId}:counts`, "max");
+    if (tagIds && tagIds.length > 0) {
+      revalidateTag(`user:${userId}:tags`, "max");
     }
 
     // Enrich bookmark with metadata after the response is sent
@@ -111,6 +119,11 @@ export async function PATCH(request: NextRequest) {
         .values(tagIds.map((tagId) => ({ bookmarkId, tagId })))
         .onConflictDoNothing();
     }
+
+    revalidateTag(`user:${userId}:bookmarks`, "max");
+    revalidateTag(`user:${userId}:url-check`, "max");
+    revalidateTag(`user:${userId}:tags`, "max");
+    revalidateTag(`bookmark:${bookmarkId}`, "max");
 
     return NextResponse.json({ success: true });
   } catch (error) {

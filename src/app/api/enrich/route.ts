@@ -5,6 +5,7 @@ import { bookmarks } from "@/db/schema";
 import { eq, and, isNull, inArray, asc } from "drizzle-orm";
 import { extractMetadata } from "@/lib/extract";
 import pLimit from "p-limit";
+import { updateTag as updateCacheTag } from "next/cache";
 
 export const maxDuration = 300; // allow up to 5 minutes for large batches
 
@@ -130,6 +131,13 @@ export async function POST(request: NextRequest) {
       );
 
       await Promise.all(tasks);
+
+      try {
+        updateCacheTag(`user:${userId}:enrich-status`);
+        updateCacheTag(`user:${userId}:bookmarks`);
+      } catch {
+        // updateTag may throw outside a request context; ignore — cacheLife provides upper bound.
+      }
 
       send({ type: "complete", enriched, failed, total: toEnrich.length });
       controller.close();

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { tags, bookmarkTags } from "@/db/schema";
 import { eq, and, ilike, sql } from "drizzle-orm";
+import { getTagsWithCountForExtensionCached } from "@/lib/cached";
 
 function getUserId(request: NextRequest): string | null {
   return request.headers.get("x-user-id") || null;
@@ -18,14 +19,15 @@ export async function GET(request: NextRequest) {
 
   const search = request.nextUrl.searchParams.get("search");
 
+  if (!search) {
+    const result = await getTagsWithCountForExtensionCached(userId);
+    return NextResponse.json({ tags: result });
+  }
+
   const userTags = await db
     .select()
     .from(tags)
-    .where(
-      search
-        ? and(eq(tags.userId, userId), ilike(tags.name, `%${search}%`))
-        : eq(tags.userId, userId),
-    );
+    .where(and(eq(tags.userId, userId), ilike(tags.name, `%${search}%`)));
 
   if (userTags.length === 0) {
     return NextResponse.json({ tags: [] });

@@ -71,7 +71,12 @@ export async function generateDailyRecommendations(
 
   // Fetch unread, non-archived bookmarks
   const unreadBookmarks = await db
-    .select()
+    .select({
+      id: bookmarks.id,
+      title: bookmarks.title,
+      domain: bookmarks.domain,
+      description: bookmarks.description,
+    })
     .from(bookmarks)
     .where(
       and(

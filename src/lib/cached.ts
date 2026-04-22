@@ -10,8 +10,24 @@
 
 import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/db";
-import { bookmarks, tags, bookmarkTags } from "@/db/schema";
-import { eq, and, desc, inArray, isNull, sql } from "drizzle-orm";
+import {
+  bookmarks,
+  tags,
+  bookmarkTags,
+  collections,
+  highlights,
+} from "@/db/schema";
+import {
+  eq,
+  and,
+  desc,
+  inArray,
+  isNull,
+  sql,
+  ilike,
+  or,
+  lt,
+} from "drizzle-orm";
 
 // Lean projection: every column from `bookmarks` except the heavy reader-only
 // fields (content, htmlContent, summary). List views never render those.
@@ -32,6 +48,333 @@ const bookmarkLeanCols = {
 } as const;
 
 export type CountFilter = "all" | "favorites" | "archived" | "unread";
+export type BookmarkFilter = "all" | "favorites" | "archived" | "unread";
+
+async function attachTagsToBookmarks<T extends { id: string }>(
+  rows: T[],
+): Promise<(T & { tags: { id: string; name: string; color: string }[] })[]> {
+  if (rows.length === 0) return [];
+
+  const bookmarkIds = rows.map((b) => b.id);
+  const tagRows = await db
+    .select({
+      bookmarkId: bookmarkTags.bookmarkId,
+      tagId: tags.id,
+      tagName: tags.name,
+      tagColor: tags.color,
+    })
+    .from(bookmarkTags)
+    .innerJoin(tags, eq(bookmarkTags.tagId, tags.id))
+    .where(inArray(bookmarkTags.bookmarkId, bookmarkIds));
+
+  const tagsByBookmark = new Map<
+    string,
+    { id: string; name: string; color: string }[]
+  >();
+  for (const row of tagRows) {
+    const arr = tagsByBookmark.get(row.bookmarkId) ?? [];
+    arr.push({ id: row.tagId, name: row.tagName, color: row.tagColor });
+    tagsByBookmark.set(row.bookmarkId, arr);
+  }
+
+  return rows.map((b) => ({ ...b, tags: tagsByBookmark.get(b.id) ?? [] }));
+}
+
+export async function getBookmarksCached(
+  userId: string,
+  filter?: BookmarkFilter,
+  tagId?: string,
+) {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(`user:${userId}:bookmarks`);
+
+  const conditions = [eq(bookmarks.userId, userId)];
+
+  switch (filter) {
+    case "favorites":
+      conditions.push(eq(bookmarks.isFavorite, true));
+      break;
+    case "archived":
+      conditions.push(eq(bookmarks.isArchived, true));
+      break;
+    case "unread":
+      conditions.push(eq(bookmarks.isRead, false));
+      break;
+    default:
+      conditions.push(eq(bookmarks.isArchived, false));
+  }
+
+  if (tagId) {
+    const taggedBookmarkIds = db
+      .select({ bookmarkId: bookmarkTags.bookmarkId })
+      .from(bookmarkTags)
+      .where(eq(bookmarkTags.tagId, tagId));
+    conditions.push(inArray(bookmarks.id, taggedBookmarkIds));
+  }
+
+  const rows = await db
+    .select(bookmarkLeanCols)
+    .from(bookmarks)
+    .where(and(...conditions))
+    .orderBy(desc(bookmarks.createdAt));
+
+  return attachTagsToBookmarks(rows);
+}
+
+export async function searchBookmarksCached(userId: string, query: string) {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(`user:${userId}:bookmarks`);
+
+  if (!query.trim()) return [];
+
+  const searchPattern = `%${query}%`;
+
+  const rows = await db
+    .select(bookmarkLeanCols)
+    .from(bookmarks)
+    .where(
+      and(
+        eq(bookmarks.userId, userId),
+        or(
+          ilike(bookmarks.title, searchPattern),
+          ilike(bookmarks.description, searchPattern),
+          ilike(bookmarks.url, searchPattern),
+        ),
+      ),
+    )
+    .orderBy(desc(bookmarks.createdAt));
+
+  return attachTagsToBookmarks(rows);
+}
+
+export async function getBookmarksPaginatedCached(
+  userId: string,
+  filter?: BookmarkFilter,
+  tagId?: string,
+  cursor?: string,
+  limit: number = 20,
+) {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(`user:${userId}:bookmarks`);
+
+  const conditions = [eq(bookmarks.userId, userId)];
+
+  switch (filter) {
+    case "favorites":
+      conditions.push(eq(bookmarks.isFavorite, true));
+      break;
+    case "archived":
+      conditions.push(eq(bookmarks.isArchived, true));
+      break;
+    case "unread":
+      conditions.push(eq(bookmarks.isRead, false));
+      break;
+    default:
+      conditions.push(eq(bookmarks.isArchived, false));
+  }
+
+  if (tagId) {
+    const taggedBookmarkIds = db
+      .select({ bookmarkId: bookmarkTags.bookmarkId })
+      .from(bookmarkTags)
+      .where(eq(bookmarkTags.tagId, tagId));
+    conditions.push(inArray(bookmarks.id, taggedBookmarkIds));
+  }
+
+  if (cursor) {
+    const [cursorBookmark] = await db
+      .select({ createdAt: bookmarks.createdAt })
+      .from(bookmarks)
+      .where(and(eq(bookmarks.id, cursor), eq(bookmarks.userId, userId)));
+
+    if (cursorBookmark) {
+      conditions.push(
+        or(
+          lt(bookmarks.createdAt, cursorBookmark.createdAt),
+          and(
+            eq(bookmarks.createdAt, cursorBookmark.createdAt),
+            lt(bookmarks.id, cursor),
+          ),
+        )!,
+      );
+    }
+  }
+
+  const rows = await db
+    .select(bookmarkLeanCols)
+    .from(bookmarks)
+    .where(and(...conditions))
+    .orderBy(desc(bookmarks.createdAt), desc(bookmarks.id))
+    .limit(limit + 1);
+
+  let nextCursor: string | null = null;
+  if (rows.length > limit) {
+    rows.pop();
+    nextCursor = rows[rows.length - 1].id;
+  }
+
+  if (rows.length === 0) return { items: [], nextCursor: null };
+
+  const items = await attachTagsToBookmarks(rows);
+  return { items, nextCursor };
+}
+
+export async function searchBookmarksPaginatedCached(
+  userId: string,
+  query: string,
+  cursor?: string,
+  limit: number = 20,
+) {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(`user:${userId}:bookmarks`);
+
+  if (!query.trim()) return { items: [], nextCursor: null };
+
+  // Cursor encodes "{rank}:{id}" of the previous page's last row, base64-encoded.
+  let cursorRank: number | null = null;
+  let cursorId: string | null = null;
+  if (cursor) {
+    try {
+      const decoded = Buffer.from(cursor, "base64url").toString("utf8");
+      const [r, id] = decoded.split(":");
+      const parsed = Number(r);
+      if (Number.isFinite(parsed) && id) {
+        cursorRank = parsed;
+        cursorId = id;
+      }
+    } catch {
+      // Invalid cursor → treat as no cursor.
+    }
+  }
+
+  const conditions = [
+    eq(bookmarks.userId, userId),
+    sql`${bookmarks.searchVector} @@ plainto_tsquery('english', ${query})`,
+  ];
+
+  if (cursorRank !== null && cursorId !== null) {
+    // Row-comparison-style filter: (rank, id) < (cursorRank, cursorId) with rank DESC, id DESC.
+    conditions.push(
+      sql`(ts_rank(${bookmarks.searchVector}, plainto_tsquery('english', ${query})), ${bookmarks.id}) < (${cursorRank}, ${cursorId})`,
+    );
+  }
+
+  const rankExpr = sql<number>`ts_rank(${bookmarks.searchVector}, plainto_tsquery('english', ${query}))`;
+
+  const rows = await db
+    .select({ ...bookmarkLeanCols, rank: rankExpr.as("rank") })
+    .from(bookmarks)
+    .where(and(...conditions))
+    .orderBy(sql`rank DESC`, desc(bookmarks.id))
+    .limit(limit + 1);
+
+  let nextCursor: string | null = null;
+  if (rows.length > limit) {
+    rows.pop();
+    const last = rows[rows.length - 1];
+    nextCursor = Buffer.from(`${last.rank}:${last.id}`, "utf8").toString(
+      "base64url",
+    );
+  }
+
+  if (rows.length === 0) return { items: [], nextCursor: null };
+
+  // Strip the rank field before attaching tags (frontend doesn't need it).
+  const stripped = rows.map(({ rank: _rank, ...rest }) => rest);
+  const items = await attachTagsToBookmarks(stripped);
+  return { items, nextCursor };
+}
+
+export async function getTagsForBookmarkCached(
+  userId: string,
+  bookmarkId: string,
+) {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(`bookmark:${bookmarkId}`, `user:${userId}:tags`);
+
+  return db
+    .select({
+      id: tags.id,
+      name: tags.name,
+      color: tags.color,
+    })
+    .from(bookmarkTags)
+    .innerJoin(tags, eq(bookmarkTags.tagId, tags.id))
+    .where(
+      and(eq(bookmarkTags.bookmarkId, bookmarkId), eq(tags.userId, userId)),
+    );
+}
+
+export async function getCollectionsCached(userId: string) {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(`user:${userId}:collections`);
+
+  return db.select().from(collections).where(eq(collections.userId, userId));
+}
+
+export async function getHighlightsCached(userId: string, bookmarkId: string) {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(`bookmark:${bookmarkId}`);
+
+  return db
+    .select()
+    .from(highlights)
+    .where(
+      and(eq(highlights.bookmarkId, bookmarkId), eq(highlights.userId, userId)),
+    );
+}
+
+export async function getBookmarkStatsCached(userId: string) {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(`user:${userId}:counts`);
+
+  const allRows = await db
+    .select({
+      id: bookmarks.id,
+      isRead: bookmarks.isRead,
+      isFavorite: bookmarks.isFavorite,
+      isArchived: bookmarks.isArchived,
+      wordCount: bookmarks.wordCount,
+      createdAt: bookmarks.createdAt,
+    })
+    .from(bookmarks)
+    .where(eq(bookmarks.userId, userId));
+
+  const total = allRows.length;
+  const read = allRows.filter((b) => b.isRead).length;
+  const favorites = allRows.filter((b) => b.isFavorite).length;
+  const unread = allRows.filter((b) => !b.isRead && !b.isArchived).length;
+
+  const now = new Date();
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const savedThisWeek = allRows.filter((b) => b.createdAt >= weekAgo).length;
+
+  const totalWords = allRows.reduce((sum, b) => sum + (b.wordCount ?? 0), 0);
+  const readingHours = Math.round((totalWords / 200 / 60) * 10) / 10;
+
+  const tagCount = await db
+    .select({ count: sql<number>`count(*)`.as("count") })
+    .from(tags)
+    .where(eq(tags.userId, userId));
+
+  return {
+    total,
+    read,
+    favorites,
+    unread,
+    savedThisWeek,
+    readingHours,
+    tagCount: Number(tagCount[0]?.count ?? 0),
+  };
+}
 
 export async function getTagsCached(userId: string) {
   "use cache";
@@ -73,7 +416,24 @@ export async function getBookmarkByIdCached(userId: string, id: string) {
   cacheTag(`bookmark:${id}`);
 
   const [bookmark] = await db
-    .select()
+    .select({
+      id: bookmarks.id,
+      userId: bookmarks.userId,
+      url: bookmarks.url,
+      title: bookmarks.title,
+      description: bookmarks.description,
+      ogImage: bookmarks.ogImage,
+      content: bookmarks.content,
+      htmlContent: bookmarks.htmlContent,
+      summary: bookmarks.summary,
+      wordCount: bookmarks.wordCount,
+      domain: bookmarks.domain,
+      isRead: bookmarks.isRead,
+      isArchived: bookmarks.isArchived,
+      isFavorite: bookmarks.isFavorite,
+      createdAt: bookmarks.createdAt,
+      updatedAt: bookmarks.updatedAt,
+    })
     .from(bookmarks)
     .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)));
 
@@ -356,6 +716,102 @@ export async function getBookmarksByTagCached(userId: string, tagId: string) {
   }));
 
   return { tag, bookmarks: bookmarkRows };
+}
+
+type ExtensionCheckRow = {
+  id: string;
+  title: string | null;
+  domain: string | null;
+  created_at: string;
+  tags: { id: string; name: string; color: string }[] | null;
+};
+
+export async function getBookmarkByUrlCached(
+  userId: string,
+  normalizedUrl: string,
+) {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(`user:${userId}:url-check`, `user:${userId}:bookmarks`);
+
+  const rows = await db.execute<ExtensionCheckRow>(sql`
+    WITH bm AS (
+      SELECT b.id, b.title, b.domain, b.created_at
+      FROM bookmarks b
+      WHERE b.user_id = ${userId}
+        AND lower(regexp_replace(b.url, '/+$', '')) = ${normalizedUrl}
+      LIMIT 1
+    )
+    SELECT bm.id, bm.title, bm.domain, bm.created_at,
+      COALESCE((
+        SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color))
+        FROM bookmark_tags bt
+        INNER JOIN tags t ON bt.tag_id = t.id
+        WHERE bt.bookmark_id = bm.id
+      ), '[]'::json) AS tags
+    FROM bm
+  `);
+
+  const row = rows[0];
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    title: row.title,
+    domain: row.domain,
+    createdAt: new Date(row.created_at),
+    tags: row.tags ?? [],
+  };
+}
+
+export async function getTagsWithCountForExtensionCached(userId: string) {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(`user:${userId}:tags`);
+
+  const userTags = await db.select().from(tags).where(eq(tags.userId, userId));
+  if (userTags.length === 0) return [];
+
+  const tagIds = userTags.map((t) => t.id);
+  const counts = await db
+    .select({
+      tagId: bookmarkTags.tagId,
+      count: sql<number>`count(*)`.as("count"),
+    })
+    .from(bookmarkTags)
+    .where(inArray(bookmarkTags.tagId, tagIds))
+    .groupBy(bookmarkTags.tagId);
+
+  const countMap = new Map(counts.map((c) => [c.tagId, Number(c.count)]));
+
+  return userTags
+    .map((t) => ({
+      id: t.id,
+      name: t.name,
+      color: t.color,
+      bookmarkCount: countMap.get(t.id) ?? 0,
+    }))
+    .sort((a, b) => b.bookmarkCount - a.bookmarkCount);
+}
+
+export async function getEnrichStatusCached(userId: string) {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(`user:${userId}:enrich-status`, `user:${userId}:bookmarks`);
+
+  const [result] = await db
+    .select({ count: sql<number>`count(*)`.as("count") })
+    .from(bookmarks)
+    .where(
+      and(
+        eq(bookmarks.userId, userId),
+        isNull(bookmarks.ogImage),
+        isNull(bookmarks.description),
+        isNull(bookmarks.content),
+      ),
+    );
+
+  return { unenriched: Number(result?.count ?? 0) };
 }
 
 export async function getUntaggedBookmarksCached(userId: string) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { eq, and, sql } from "drizzle-orm";
+import { revalidateTag } from "next/cache";
 import { z } from "zod/v4";
 import { db } from "@/db";
 import { bookmarks, bookmarkTags, tags } from "@/db/schema";
@@ -67,6 +68,10 @@ export async function POST(request: NextRequest) {
       .insert(bookmarks)
       .values({ userId, url, domain })
       .returning();
+
+    revalidateTag(`user:${userId}:bookmarks`, "max");
+    revalidateTag(`user:${userId}:url-check`, "max");
+    revalidateTag(`user:${userId}:counts`, "max");
 
     // Background enrichment
     after(async () => {

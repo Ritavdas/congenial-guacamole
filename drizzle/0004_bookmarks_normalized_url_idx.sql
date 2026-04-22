@@ -1,0 +1,1 @@
+CREATE INDEX "bookmarks_user_normalized_url_idx" ON "bookmarks" USING btree ("user_id", (lower(regexp_replace("url", '/+$', ''))));

@@ -24,6 +24,12 @@ vi.mock("next/server", async () => {
   return { ...actual, after: vi.fn((fn: () => void) => fn()) };
 });
 
+vi.mock("next/cache", () => ({
+  revalidateTag: vi.fn(),
+  updateTag: vi.fn(),
+  revalidatePath: vi.fn(),
+}));
+
 vi.mock("@/db", () => ({ db: mockDb }));
 vi.mock("@/lib/extract", () => ({ extractMetadata: mockExtract }));
 

@@ -7,7 +7,14 @@ import {
   uuid,
   primaryKey,
   index,
+  customType,
 } from "drizzle-orm/pg-core";
+
+const tsvector = customType<{ data: string; driverData: string }>({
+  dataType() {
+    return "tsvector";
+  },
+});
 
 export const bookmarks = pgTable(
   "bookmarks",
@@ -28,6 +35,7 @@ export const bookmarks = pgTable(
     isFavorite: boolean("is_favorite").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    searchVector: tsvector("search_vector"),
   },
   (t) => [
     index("bookmarks_user_id_idx").on(t.userId),
@@ -120,8 +128,8 @@ export const dailyRecommendations = pgTable("daily_recommendations", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export type Bookmark = typeof bookmarks.$inferSelect;
-export type NewBookmark = typeof bookmarks.$inferInsert;
+export type Bookmark = Omit<typeof bookmarks.$inferSelect, "searchVector">;
+export type NewBookmark = Omit<typeof bookmarks.$inferInsert, "searchVector">;
 export type Tag = typeof tags.$inferSelect;
 export type NewTag = typeof tags.$inferInsert;
 export type BookmarkWithTags = Bookmark & {
