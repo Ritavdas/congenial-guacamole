@@ -11,6 +11,7 @@ export type DashboardPick = {
   readMinutes: number;
   reason: PickReason;
   savedDaysAgo: number;
+  completionScore: number | null;
 };
 
 type PickInput = {
@@ -22,6 +23,7 @@ type PickInput = {
   wordCount: number | null;
   isArchived: boolean;
   createdAt: Date;
+  completionScore?: number | null;
 };
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
@@ -50,6 +52,7 @@ function toPick(b: PickInput, reason: PickReason, now: Date): DashboardPick {
     readMinutes: estimateReadMinutes(b.wordCount),
     reason,
     savedDaysAgo,
+    completionScore: b.completionScore ?? null,
   };
 }
 

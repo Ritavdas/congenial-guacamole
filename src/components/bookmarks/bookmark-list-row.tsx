@@ -106,6 +106,15 @@ export const BookmarkListRow = memo(
             <span>{estimateReadingTime(bookmark.wordCount)} min</span>
             <span className="text-muted-foreground/40">·</span>
             <span>{timeAgo(bookmark.createdAt)}</span>
+            {bookmark.outcomeChip && (
+              <>
+                <span className="text-muted-foreground/40">·</span>
+                <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                  <Check className="h-2.5 w-2.5" aria-hidden="true" />
+                  {bookmark.outcomeChip}
+                </span>
+              </>
+            )}
           </div>
         </div>
 
@@ -177,7 +186,8 @@ export const BookmarkListRow = memo(
       prev.bookmark.id === next.bookmark.id &&
       prev.bookmark.isFavorite === next.bookmark.isFavorite &&
       prev.bookmark.isArchived === next.bookmark.isArchived &&
-      prev.bookmark.isRead === next.bookmark.isRead
+      prev.bookmark.isRead === next.bookmark.isRead &&
+      prev.bookmark.outcomeChip === next.bookmark.outcomeChip
     );
   },
 );

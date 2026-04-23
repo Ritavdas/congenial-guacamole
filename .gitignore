@@ -51,3 +51,4 @@ next-env.d.ts
 
 # drizzle
 /drizzle/meta
+next-env.d.ts

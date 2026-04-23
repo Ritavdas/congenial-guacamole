@@ -4,6 +4,7 @@ import { revalidateTag } from "next/cache";
 import { db } from "@/db";
 import { bookmarks, bookmarkTags } from "@/db/schema";
 import { extractMetadata } from "@/lib/extract";
+import { enqueueEmbedding } from "@/lib/embeddings";
 import { extensionSaveSchema } from "@/lib/validators";
 import { z } from "zod/v4";
 
@@ -69,6 +70,9 @@ export async function POST(request: NextRequest) {
       } catch (err) {
         console.error("Background enrichment failed:", err);
       }
+
+      // Embedding piggybacks on enrichment so it sees the freshest summary/description.
+      await enqueueEmbedding(bookmark.id);
     });
 
     return NextResponse.json({ success: true, bookmark });

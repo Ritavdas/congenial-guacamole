@@ -2,18 +2,31 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
+import { after } from "next/server";
 import { db } from "@/db";
 import {
   bookmarks,
+  bookmarkEvents,
   tags,
   bookmarkTags,
   collections,
   bookmarkCollections,
   highlights,
 } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
-import { revalidatePath, updateTag as updateCacheTag } from "next/cache";
+import { eq, and, inArray } from "drizzle-orm";
+import {
+  revalidatePath,
+  revalidateTag,
+  updateTag as updateCacheTag,
+} from "next/cache";
 import { extractMetadata } from "@/lib/extract";
+import { enqueueEmbedding } from "@/lib/embeddings";
+import { generateOutcomeChip } from "@/lib/outcome";
+import { recomputeAllScores } from "@/lib/completion-score";
+import { drawLottery, settleLottery } from "@/lib/lottery";
+import { rebuildClusters } from "@/lib/clustering";
+import { createDebate, runDebate } from "@/lib/debates";
+import { redirect } from "next/navigation";
 import {
   getTagsCached,
   getTagsWithCountCached,
@@ -63,6 +76,9 @@ export async function addBookmark(url: string) {
   updateCacheTag(`user:${userId}:counts`);
   updateCacheTag(`user:${userId}:untagged`);
   updateCacheTag(`user:${userId}:enrich-status`);
+
+  after(() => enqueueEmbedding(bookmark.id));
+
   return bookmark;
 }
 
@@ -135,15 +151,62 @@ export async function toggleBookmarkRead(id: string) {
 
   if (!existing) throw new Error("Not found");
 
+  const wasUnread = !existing.isRead;
+
   await db
     .update(bookmarks)
     .set({ isRead: !existing.isRead, updatedAt: new Date() })
     .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)));
 
+  // Transitioning unread -> read counts as an explicit "marked_read" signal.
+  // Distinct from finished_inferred (scroll+dwell): keep raw events separate
+  // so the recommender can weight them differently later.
+  if (wasUnread) {
+    await db.insert(bookmarkEvents).values({
+      userId,
+      bookmarkId: id,
+      kind: "marked_read",
+    });
+    // Settle any active lottery pick for this bookmark as 'read'.
+    // No-op if there's no active row. We intentionally only settle from the
+    // explicit mark-as-read path for V1 — a future iteration may also settle
+    // when finished_inferred fires from /api/bookmark-events.
+    await settleLottery(userId, id, "read");
+
+    after(() => generateOutcomeChip(id));
+  }
+
   revalidatePath("/");
   updateCacheTag(`user:${userId}:bookmarks`);
   updateCacheTag(`user:${userId}:url-check`);
   updateCacheTag(`bookmark:${id}`);
+}
+
+export async function drawLotteryAction() {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  const picked = await drawLottery(userId);
+  revalidatePath("/");
+  if (!picked) {
+    // Flash via search param so the widget can render an inline note.
+    redirect("/?lottery=empty");
+  }
+}
+
+export async function skipLotteryAction() {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  // Settle whatever is currently active as 'skipped'. We don't need the
+  // bookmark id from the form — there's at most one active row per user
+  // (enforced by the partial unique index).
+  const { getActiveLottery } = await import("@/lib/lottery");
+  const active = await getActiveLottery(userId);
+  if (active) {
+    await settleLottery(userId, active.bookmarkId, "skipped");
+  }
+  revalidatePath("/");
 }
 
 export async function deleteBookmark(id: string) {
@@ -460,4 +523,70 @@ export async function getUntaggedBookmarks() {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
   return getUntaggedBookmarksCached(userId);
+}
+
+export async function startDebateAction(formData: FormData) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  const a = String(formData.get("bookmarkA") ?? "").trim();
+  const b = String(formData.get("bookmarkB") ?? "").trim();
+  if (!a || !b) throw new Error("Pick two bookmarks");
+
+  const { id } = await createDebate(userId, [a, b]);
+  // Run in background after the response is sent so redirect is fast.
+  after(() => runDebate(id));
+  redirect(`/debate/${id}`);
+}
+
+export async function recomputeCompletionScoresAction() {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+  const result = await recomputeAllScores(userId, { onlyMissing: false });
+  revalidatePath("/");
+  updateCacheTag(`user:${userId}:bookmarks`);
+  return result;
+}
+
+export async function triggerRebuildClustersAction() {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+  const result = await rebuildClusters(userId);
+  revalidatePath("/clusters");
+  return { clusters: result.clusters };
+}
+
+export async function archiveBulkAction(bookmarkIds: string[]) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  if (!Array.isArray(bookmarkIds) || bookmarkIds.length === 0) {
+    return { count: 0 };
+  }
+
+  const result = await db
+    .update(bookmarks)
+    .set({ isArchived: true, updatedAt: new Date() })
+    .where(
+      and(eq(bookmarks.userId, userId), inArray(bookmarks.id, bookmarkIds)),
+    )
+    .returning({ id: bookmarks.id });
+
+  revalidatePath("/cull");
+  revalidatePath("/");
+  revalidatePath("/archive");
+  updateCacheTag(`user:${userId}:bookmarks`);
+  updateCacheTag(`user:${userId}:counts`);
+  for (const id of result) {
+    updateCacheTag(`bookmark:${id.id}`);
+  }
+
+  return { count: result.length };
+}
+
+export async function refreshHonestyAction() {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+  revalidateTag(`honesty:${userId}`, "max");
+  revalidatePath("/honesty");
 }

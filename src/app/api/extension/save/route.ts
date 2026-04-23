@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 import { db } from "@/db";
 import { bookmarks, bookmarkTags, tags } from "@/db/schema";
 import { extractMetadata } from "@/lib/extract";
+import { enqueueEmbedding } from "@/lib/embeddings";
 import { urlSchema, userIdSchema } from "@/lib/validators";
 
 const upsertSchema = z.object({
@@ -91,6 +92,8 @@ export async function POST(request: NextRequest) {
       } catch (err) {
         console.error("Background enrichment failed:", err);
       }
+
+      await enqueueEmbedding(bookmark.id);
     });
 
     return NextResponse.json({

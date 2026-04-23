@@ -1,6 +1,7 @@
 import { getBookmarkById, getHighlights } from "@/lib/actions";
 import { notFound } from "next/navigation";
 import { ReaderView } from "@/components/bookmarks/reader-view";
+import { ReaderTelemetry } from "@/components/bookmarks/reader-telemetry";
 
 interface ReadPageProps {
   params: Promise<{ id: string }>;
@@ -16,5 +17,10 @@ export default async function ReadPage({ params }: ReadPageProps) {
 
   const bookmarkHighlights = await getHighlights(id);
 
-  return <ReaderView bookmark={bookmark} highlights={bookmarkHighlights} />;
+  return (
+    <>
+      <ReaderTelemetry bookmarkId={id} />
+      <ReaderView bookmark={bookmark} highlights={bookmarkHighlights} />
+    </>
+  );
 }

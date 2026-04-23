@@ -4,17 +4,36 @@ import {
   timestamp,
   boolean,
   integer,
+  real,
   uuid,
+  date,
   primaryKey,
   index,
   customType,
+  jsonb,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 const tsvector = customType<{ data: string; driverData: string }>({
   dataType() {
     return "tsvector";
   },
 });
+
+// pgvector — round-trip number[] <-> Postgres vector literal "[1,2,3]".
+// Cast bound params to ::vector explicitly in similarity SQL.
+const vector = (dim: number) =>
+  customType<{ data: number[]; driverData: string }>({
+    dataType() {
+      return `vector(${dim})`;
+    },
+    toDriver(value: number[]): string {
+      return `[${value.join(",")}]`;
+    },
+    fromDriver(value: string): number[] {
+      return value.replace(/^\[/, "").replace(/\]$/, "").split(",").map(Number);
+    },
+  });
 
 export const bookmarks = pgTable(
   "bookmarks",
@@ -36,6 +55,15 @@ export const bookmarks = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     searchVector: tsvector("search_vector"),
+    embedding: vector(1536)("embedding"),
+    embeddingModel: text("embedding_model"),
+    embeddingInputHash: text("embedding_input_hash"),
+    embeddedAt: timestamp("embedded_at"),
+    outcomeChip: text("outcome_chip"),
+    outcomeChipModel: text("outcome_chip_model"),
+    outcomeChipAt: timestamp("outcome_chip_at", { withTimezone: true }),
+    completionScore: real("completion_score"),
+    completionScoreAt: timestamp("completion_score_at", { withTimezone: true }),
   },
   (t) => [
     index("bookmarks_user_id_idx").on(t.userId),
@@ -128,8 +156,186 @@ export const dailyRecommendations = pgTable("daily_recommendations", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export type Bookmark = Omit<typeof bookmarks.$inferSelect, "searchVector">;
-export type NewBookmark = Omit<typeof bookmarks.$inferInsert, "searchVector">;
+export const BOOKMARK_EVENT_KINDS = [
+  "opened",
+  "scroll_25",
+  "scroll_50",
+  "scroll_75",
+  "scroll_100",
+  "marked_read",
+  "finished_inferred",
+] as const;
+export type BookmarkEventKind = (typeof BOOKMARK_EVENT_KINDS)[number];
+
+export const bookmarkEvents = pgTable(
+  "bookmark_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id").notNull(),
+    bookmarkId: uuid("bookmark_id")
+      .notNull()
+      .references(() => bookmarks.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("bookmark_events_bookmark_id_idx").on(t.bookmarkId),
+    index("bookmark_events_user_bookmark_kind_idx").on(
+      t.userId,
+      t.bookmarkId,
+      t.kind,
+    ),
+  ],
+);
+
+export const LOTTERY_PICK_STATUSES = [
+  "active",
+  "read",
+  "expired",
+  "skipped",
+] as const;
+export type LotteryPickStatus = (typeof LOTTERY_PICK_STATUSES)[number];
+
+export const lotteryPicks = pgTable(
+  "lottery_picks",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id").notNull(),
+    bookmarkId: uuid("bookmark_id")
+      .notNull()
+      .references(() => bookmarks.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("active"),
+    pickedAt: timestamp("picked_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    settledAt: timestamp("settled_at", { withTimezone: true }),
+  },
+  (t) => [index("lottery_picks_user_status_idx").on(t.userId, t.status)],
+);
+
+export type LotteryPick = typeof lotteryPicks.$inferSelect;
+export type NewLotteryPick = typeof lotteryPicks.$inferInsert;
+
+export const DEBATE_STATUSES = [
+  "pending",
+  "running",
+  "complete",
+  "failed",
+] as const;
+export type DebateStatus = (typeof DEBATE_STATUSES)[number];
+
+export type DebateTurn = {
+  speaker: "A" | "B" | "moderator";
+  bookmarkId?: string;
+  text: string;
+  createdAt: string;
+};
+
+export const debates = pgTable(
+  "debates",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id").notNull(),
+    topic: text("topic"),
+    bookmarkIds: text("bookmark_ids").array().notNull(),
+    transcript: jsonb("transcript")
+      .$type<DebateTurn[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    status: text("status").$type<DebateStatus>().notNull().default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (t) => [index("debates_user_created_idx").on(t.userId, t.createdAt.desc())],
+);
+
+export type Debate = typeof debates.$inferSelect;
+export type NewDebate = typeof debates.$inferInsert;
+
+export const dailyExcerpts = pgTable(
+  "daily_excerpts",
+  {
+    userId: text("user_id").notNull(),
+    date: date("date").notNull(),
+    bookmarkId: uuid("bookmark_id")
+      .notNull()
+      .references(() => bookmarks.id, { onDelete: "cascade" }),
+    excerpt: text("excerpt").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.date] }),
+    index("daily_excerpts_user_idx").on(t.userId, t.date.desc()),
+  ],
+);
+
+export type DailyExcerpt = typeof dailyExcerpts.$inferSelect;
+export type NewDailyExcerpt = typeof dailyExcerpts.$inferInsert;
+
+export const topicClusters = pgTable(
+  "topic_clusters",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id").notNull(),
+    label: text("label"),
+    centroid: vector(1536)("centroid").notNull(),
+    memberCount: integer("member_count").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [index("topic_clusters_user_idx").on(t.userId)],
+);
+
+export const bookmarkTopics = pgTable(
+  "bookmark_topics",
+  {
+    bookmarkId: uuid("bookmark_id")
+      .notNull()
+      .references(() => bookmarks.id, { onDelete: "cascade" }),
+    topicClusterId: uuid("topic_cluster_id")
+      .notNull()
+      .references(() => topicClusters.id, { onDelete: "cascade" }),
+    distance: real("distance").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.bookmarkId, t.topicClusterId] }),
+    index("bookmark_topics_cluster_idx").on(t.topicClusterId),
+  ],
+);
+
+export type TopicCluster = typeof topicClusters.$inferSelect;
+export type NewTopicCluster = typeof topicClusters.$inferInsert;
+export type BookmarkTopic = typeof bookmarkTopics.$inferSelect;
+export type NewBookmarkTopic = typeof bookmarkTopics.$inferInsert;
+
+export type Bookmark = Omit<
+  typeof bookmarks.$inferSelect,
+  | "searchVector"
+  | "embedding"
+  | "embeddingModel"
+  | "embeddingInputHash"
+  | "embeddedAt"
+  | "outcomeChipModel"
+  | "outcomeChipAt"
+  | "completionScoreAt"
+>;
+export type NewBookmark = Omit<
+  typeof bookmarks.$inferInsert,
+  | "searchVector"
+  | "embedding"
+  | "embeddingModel"
+  | "embeddingInputHash"
+  | "embeddedAt"
+  | "outcomeChipModel"
+  | "outcomeChipAt"
+  | "completionScoreAt"
+>;
 export type Tag = typeof tags.$inferSelect;
 export type NewTag = typeof tags.$inferInsert;
 export type BookmarkWithTags = Bookmark & {

@@ -5,6 +5,7 @@ import { bookmarks, tags, bookmarkTags } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { parsePocketExport, parseAlreadyReadJson } from "@/lib/import-pocket";
 import { extractMetadata } from "@/lib/extract";
+import { enqueueEmbedding } from "@/lib/embeddings";
 
 export async function POST(request: NextRequest) {
   const { userId } = await auth();
@@ -134,6 +135,8 @@ export async function POST(request: NextRequest) {
           if (Object.keys(updates).length > 0) {
             await db.update(bookmarks).set(updates).where(eq(bookmarks.id, id));
           }
+
+          await enqueueEmbedding(id);
         } catch (err) {
           console.error(`Enrichment failed for bookmark ${id}:`, err);
         }

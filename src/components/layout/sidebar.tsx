@@ -5,13 +5,26 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
-import { Bookmark, Home, Archive, Search } from "lucide-react";
+import {
+  Bookmark,
+  Home,
+  Archive,
+  Search,
+  Layers,
+  Trash2,
+  MessagesSquare,
+  Scale,
+} from "lucide-react";
 import { AddBookmarkDialog } from "@/components/bookmarks/add-bookmark-dialog";
 
 const navItems = [
   { href: "/", label: "Home", icon: Home },
   { href: "/search", label: "Search", icon: Search },
   { href: "/archive", label: "Archive", icon: Archive },
+  { href: "/clusters", label: "Topics", icon: Layers },
+  { href: "/cull", label: "Cull", icon: Trash2 },
+  { href: "/debate", label: "Debate", icon: MessagesSquare },
+  { href: "/honesty", label: "Honesty", icon: Scale },
 ];
 
 interface TagWithCount {

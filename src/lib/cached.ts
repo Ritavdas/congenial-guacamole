@@ -45,6 +45,8 @@ const bookmarkLeanCols = {
   isFavorite: bookmarks.isFavorite,
   createdAt: bookmarks.createdAt,
   updatedAt: bookmarks.updatedAt,
+  outcomeChip: bookmarks.outcomeChip,
+  completionScore: bookmarks.completionScore,
 } as const;
 
 export type CountFilter = "all" | "favorites" | "archived" | "unread";
@@ -433,6 +435,8 @@ export async function getBookmarkByIdCached(userId: string, id: string) {
       isFavorite: bookmarks.isFavorite,
       createdAt: bookmarks.createdAt,
       updatedAt: bookmarks.updatedAt,
+      outcomeChip: bookmarks.outcomeChip,
+      completionScore: bookmarks.completionScore,
     })
     .from(bookmarks)
     .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)));

@@ -158,6 +158,12 @@ export const BookmarkCard = memo(
                   (bookmark.content.length > 120 ? "..." : "")
                 : (bookmark.domain ?? "No description")}
           </CardDescription>
+          {bookmark.outcomeChip && (
+            <span className="mt-2 inline-flex w-fit items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+              <Check className="h-3 w-3" aria-hidden="true" />
+              {bookmark.outcomeChip}
+            </span>
+          )}
         </CardHeader>
         {cardTags.length > 0 && (
           <div className="flex flex-wrap gap-1 px-6 pb-2">
@@ -223,6 +229,7 @@ export const BookmarkCard = memo(
       prev.bookmark.isFavorite === next.bookmark.isFavorite &&
       prev.bookmark.isArchived === next.bookmark.isArchived &&
       prev.bookmark.isRead === next.bookmark.isRead &&
+      prev.bookmark.outcomeChip === next.bookmark.outcomeChip &&
       prev.bookmark.tags.length === next.bookmark.tags.length &&
       prev.onTagClick === next.onTagClick
     );

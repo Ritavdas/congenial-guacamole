@@ -1,8 +1,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { headers } from "next/headers";
+import { after } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 
+import { RereadSection } from "@/components/reread/reread-section";
 import { getBookmarks } from "@/lib/actions";
+import { recomputeAllScores } from "@/lib/completion-score";
+import { LotteryWidget } from "@/components/lottery/lottery-widget";
+import { DailyExcerptCard } from "@/components/excerpt/excerpt-card";
 import {
   reasonHint,
   selectDashboardPicks,
@@ -29,6 +35,13 @@ const REASON_CHIPS: Record<PickReason, ReasonChip> = {
     className: "bg-rose-500/10 text-rose-700 dark:text-rose-300",
   },
 };
+
+function chipColor(score: number): string {
+  if (score >= 0.7)
+    return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
+  if (score >= 0.4) return "bg-amber-500/10 text-amber-700 dark:text-amber-300";
+  return "bg-muted text-muted-foreground";
+}
 
 const TABS: ReadonlyArray<{ label: string; href: string }> = [
   { label: "Picks", href: "/" },
@@ -109,6 +122,13 @@ function PickItem({ pick }: { pick: DashboardPick }) {
               <span className="text-muted-foreground">
                 {pick.readMinutes} min read
               </span>
+              {pick.completionScore != null ? (
+                <span
+                  className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-medium ${chipColor(pick.completionScore)}`}
+                >
+                  {Math.round(pick.completionScore * 100)}% likely
+                </span>
+              ) : null}
             </div>
 
             <h3 className="text-base font-semibold leading-snug line-clamp-2 group-hover:text-primary">
@@ -160,9 +180,16 @@ function ErrorState({ message }: { message: string }) {
   );
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ lottery?: string }>;
+}) {
   // Opt out of static prerender — we use new Date() for "saved X days ago".
   await headers();
+  const sp = (await searchParams) ?? {};
+
+  const { userId } = await auth();
 
   let picks: DashboardPick[] = [];
   let errorMessage = "";
@@ -170,6 +197,9 @@ export default async function DashboardPage() {
   try {
     const unread = await getBookmarks("unread");
     picks = selectDashboardPicks(unread);
+    if (userId) {
+      after(() => recomputeAllScores(userId, { limit: 30, onlyMissing: true }));
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[DashboardPage] Failed to load data:", msg);
@@ -195,6 +225,14 @@ export default async function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
+      <div className="mb-6">
+        <LotteryWidget searchParams={sp} />
+      </div>
+      {userId ? (
+        <div className="mb-6">
+          <DailyExcerptCard userId={userId} />
+        </div>
+      ) : null}
       <header className="flex items-baseline justify-between gap-4">
         <div className="min-w-0">
           <h2 className="text-2xl font-semibold tracking-tight">
@@ -218,6 +256,8 @@ export default async function DashboardPage() {
           ))}
         </ul>
       )}
+
+      {userId ? <RereadSection userId={userId} /> : null}
 
       {picks.length > 0 ? (
         <div className="mt-8 text-center">
