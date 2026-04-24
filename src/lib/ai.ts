@@ -12,7 +12,7 @@ const DEFAULTS = {
     model: "gpt-4o-mini",
   },
   openrouter: {
-    model: "deepseek/deepseek-chat-v3-0324",
+    model: "nvidia/nemotron-3-super-120b-a12b:free",
     baseURL: "https://openrouter.ai/api/v1",
   },
 } as const;

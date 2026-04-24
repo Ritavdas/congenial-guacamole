@@ -217,44 +217,6 @@ export const lotteryPicks = pgTable(
 export type LotteryPick = typeof lotteryPicks.$inferSelect;
 export type NewLotteryPick = typeof lotteryPicks.$inferInsert;
 
-export const DEBATE_STATUSES = [
-  "pending",
-  "running",
-  "complete",
-  "failed",
-] as const;
-export type DebateStatus = (typeof DEBATE_STATUSES)[number];
-
-export type DebateTurn = {
-  speaker: "A" | "B" | "moderator";
-  bookmarkId?: string;
-  text: string;
-  createdAt: string;
-};
-
-export const debates = pgTable(
-  "debates",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    userId: text("user_id").notNull(),
-    topic: text("topic"),
-    bookmarkIds: text("bookmark_ids").array().notNull(),
-    transcript: jsonb("transcript")
-      .$type<DebateTurn[]>()
-      .notNull()
-      .default(sql`'[]'::jsonb`),
-    status: text("status").$type<DebateStatus>().notNull().default("pending"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-    completedAt: timestamp("completed_at", { withTimezone: true }),
-  },
-  (t) => [index("debates_user_created_idx").on(t.userId, t.createdAt.desc())],
-);
-
-export type Debate = typeof debates.$inferSelect;
-export type NewDebate = typeof debates.$inferInsert;
-
 export const dailyExcerpts = pgTable(
   "daily_excerpts",
   {

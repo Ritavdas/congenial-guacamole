@@ -40,7 +40,7 @@ describe("getModel", () => {
       apiKey: "openrouter-key",
     });
     expect(openrouterClient).toHaveBeenCalledWith(
-      "deepseek/deepseek-chat-v3-0324",
+      "nvidia/nemotron-3-super-120b-a12b:free",
     );
     expect(mockOpenAI).not.toHaveBeenCalled();
   });

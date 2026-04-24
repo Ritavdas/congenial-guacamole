@@ -10,6 +10,7 @@ import {
   bookmarkTags,
 } from "@/db/schema";
 import { getModel } from "@/lib/ai";
+import { notThinBookmarkSql } from "@/lib/thin-bookmark";
 
 function getTodayDateString(): string {
   return new Date().toISOString().split("T")[0];
@@ -69,7 +70,8 @@ export async function generateDailyRecommendations(
       );
   }
 
-  // Fetch unread, non-archived bookmarks
+  // Fetch unread, non-archived, non-thin bookmarks. Thin = twitter links,
+  // plain URL saves with no body content. See lib/thin-bookmark.ts.
   const unreadBookmarks = await db
     .select({
       id: bookmarks.id,
@@ -83,6 +85,7 @@ export async function generateDailyRecommendations(
         eq(bookmarks.userId, userId),
         eq(bookmarks.isRead, false),
         eq(bookmarks.isArchived, false),
+        notThinBookmarkSql(),
       ),
     );
 

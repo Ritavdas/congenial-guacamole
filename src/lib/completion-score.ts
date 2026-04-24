@@ -14,7 +14,7 @@
  * and `recomputeAllScores` perform DB I/O.
  */
 
-import { and, eq, isNull, sql, desc, inArray, not, or } from "drizzle-orm";
+import { and, eq, isNull, sql, desc, inArray, lt, not, or } from "drizzle-orm";
 
 import { db } from "@/db";
 import { bookmarks, bookmarkEvents } from "@/db/schema";
@@ -262,8 +262,8 @@ export async function recomputeAllScores(
     conditions.push(
       or(
         isNull(bookmarks.completionScore),
-        sql`${bookmarks.completionScoreAt} IS NULL`,
-        sql`${bookmarks.completionScoreAt} < ${sevenDaysAgo}`,
+        isNull(bookmarks.completionScoreAt),
+        lt(bookmarks.completionScoreAt, sevenDaysAgo),
       )!,
     );
   }

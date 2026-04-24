@@ -12,7 +12,6 @@ import {
   Search,
   Layers,
   Trash2,
-  MessagesSquare,
   Scale,
 } from "lucide-react";
 import { AddBookmarkDialog } from "@/components/bookmarks/add-bookmark-dialog";
@@ -23,7 +22,6 @@ const navItems = [
   { href: "/archive", label: "Archive", icon: Archive },
   { href: "/clusters", label: "Topics", icon: Layers },
   { href: "/cull", label: "Cull", icon: Trash2 },
-  { href: "/debate", label: "Debate", icon: MessagesSquare },
   { href: "/honesty", label: "Honesty", icon: Scale },
 ];
 

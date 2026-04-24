@@ -14,6 +14,7 @@
     "db:studio": "drizzle-kit studio",
     "db:search-index": "bun run scripts/add-search-index.ts",
     "backfill:embeddings": "tsx scripts/backfill-embeddings.ts",
+    "backfill:youtube": "tsx scripts/backfill-youtube.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

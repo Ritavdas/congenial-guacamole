@@ -13,7 +13,20 @@ export async function LotteryWidget({
   const { userId } = await auth();
   if (!userId) return null;
 
-  const active = await getActiveLottery(userId);
+  // Never let a lottery DB error take down the entire dashboard. The widget
+  // is a soft enhancement — render the empty state on failure and log so we
+  // can investigate without breaking the page.
+  let active: Awaited<ReturnType<typeof getActiveLottery>> = null;
+  try {
+    active = await getActiveLottery(userId);
+  } catch (err) {
+    console.error(
+      "[LotteryWidget] getActiveLottery failed:",
+      err instanceof Error ? err.message : err,
+    );
+    active = null;
+  }
+
   const flash = searchParams?.lottery;
 
   if (!active) {

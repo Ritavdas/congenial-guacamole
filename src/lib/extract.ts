@@ -1,6 +1,7 @@
 import { parseHTML } from "linkedom";
 import { Readability } from "@mozilla/readability";
 import { isTwitterStatusUrl, extractTwitterMetadata } from "./extract-twitter";
+import { isYouTubeUrl, extractYouTubeMetadata } from "./extract-youtube";
 import { isAllowedUrl } from "./url-safety";
 
 export interface ExtractedMetadata {
@@ -24,6 +25,13 @@ export async function extractMetadata(url: string): Promise<ExtractedMetadata> {
   if (isTwitterStatusUrl(url)) {
     const twitterData = await extractTwitterMetadata(url);
     if (twitterData) return twitterData;
+  }
+
+  // YouTube — fetch oEmbed metadata + transcript-as-content so the reader
+  // has something to render and the bookmark is searchable.
+  if (isYouTubeUrl(url)) {
+    const youtubeData = await extractYouTubeMetadata(url);
+    if (youtubeData) return youtubeData;
   }
 
   try {

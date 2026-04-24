@@ -1,6 +1,7 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, lt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { bookmarks, lotteryPicks, type LotteryPickStatus } from "@/db/schema";
+import { notThinBookmarkSql } from "@/lib/thin-bookmark";
 
 const LOTTERY_DURATION_MS = 24 * 60 * 60 * 1000;
 const STALE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
@@ -106,9 +107,12 @@ export async function drawLottery(
       eq(bookmarks.userId, userId),
       eq(bookmarks.isRead, false),
       eq(bookmarks.isArchived, false),
+      // Lottery shouldn't land on twitter links / plain URL saves —
+      // see lib/thin-bookmark.ts.
+      notThinBookmarkSql(),
     ];
     if (preferStale) {
-      conditions.push(sql`${bookmarks.createdAt} < ${staleCutoff}`);
+      conditions.push(lt(bookmarks.createdAt, staleCutoff));
     }
     const [row] = await db
       .select({

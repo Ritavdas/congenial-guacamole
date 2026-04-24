@@ -25,7 +25,6 @@ import { generateOutcomeChip } from "@/lib/outcome";
 import { recomputeAllScores } from "@/lib/completion-score";
 import { drawLottery, settleLottery } from "@/lib/lottery";
 import { rebuildClusters } from "@/lib/clustering";
-import { createDebate, runDebate } from "@/lib/debates";
 import { redirect } from "next/navigation";
 import {
   getTagsCached,
@@ -523,20 +522,6 @@ export async function getUntaggedBookmarks() {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
   return getUntaggedBookmarksCached(userId);
-}
-
-export async function startDebateAction(formData: FormData) {
-  const { userId } = await auth();
-  if (!userId) throw new Error("Unauthorized");
-
-  const a = String(formData.get("bookmarkA") ?? "").trim();
-  const b = String(formData.get("bookmarkB") ?? "").trim();
-  if (!a || !b) throw new Error("Pick two bookmarks");
-
-  const { id } = await createDebate(userId, [a, b]);
-  // Run in background after the response is sent so redirect is fast.
-  after(() => runDebate(id));
-  redirect(`/debate/${id}`);
 }
 
 export async function recomputeCompletionScoresAction() {

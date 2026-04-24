@@ -22,6 +22,8 @@ import { toast } from "sonner";
 
 import { ArticleContent } from "@/components/reader/article-content";
 import { ReadingProgressBar } from "@/components/reader/reading-progress";
+import { YouTubeTranscript } from "@/components/reader/youtube-transcript";
+import { extractYouTubeId, isYouTubeUrl } from "@/lib/extract-youtube";
 import {
   useReaderSettings,
   ReaderToolbar,
@@ -83,6 +85,12 @@ export function ReaderView({ bookmark, highlights }: ReaderViewProps) {
   const wordCount =
     bookmark.wordCount ??
     (bookmark.content ? bookmark.content.trim().split(/\s+/).length : 0);
+
+  // YouTube embed: render the player above the content (which may be the
+  // transcript) — or as the entire body when transcript extraction failed.
+  const youtubeId = isYouTubeUrl(bookmark.url)
+    ? extractYouTubeId(bookmark.url)
+    : null;
 
   async function handleSummarize() {
     if (!bookmark.content && !bookmark.htmlContent) {
@@ -273,19 +281,32 @@ export function ReaderView({ bookmark, highlights }: ReaderViewProps) {
                 </div>
               </header>
 
-              {bookmark.ogImage && (
-                <div
-                  className="relative mb-8 w-full overflow-hidden rounded-xl"
-                  style={{ maxHeight: "400px", minHeight: "200px" }}
-                >
-                  <Image
-                    src={bookmark.ogImage}
-                    alt={bookmark.title ?? ""}
-                    fill
-                    className="object-cover"
-                    unoptimized
+              {youtubeId ? (
+                <div className="relative mb-8 w-full overflow-hidden rounded-xl bg-black">
+                  <div style={{ paddingTop: "56.25%" }} />
+                  <iframe
+                    src={`https://www.youtube-nocookie.com/embed/${youtubeId}`}
+                    title={bookmark.title ?? "YouTube video"}
+                    className="absolute inset-0 h-full w-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
                   />
                 </div>
+              ) : (
+                bookmark.ogImage && (
+                  <div
+                    className="relative mb-8 w-full overflow-hidden rounded-xl"
+                    style={{ maxHeight: "400px", minHeight: "200px" }}
+                  >
+                    <Image
+                      src={bookmark.ogImage}
+                      alt={bookmark.title ?? ""}
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
+                  </div>
+                )
               )}
 
               {/* ─── AI SUMMARY CARD ─── */}
@@ -392,7 +413,9 @@ export function ReaderView({ bookmark, highlights }: ReaderViewProps) {
                         color: "var(--reader-muted, var(--muted-foreground))",
                       }}
                     >
-                      No readable content could be extracted from this page.
+                      {youtubeId
+                        ? "No transcript was available for this video. Watch it above or open the original page."
+                        : "No readable content could be extracted from this page."}
                     </p>
                     <a
                       href={bookmark.url}

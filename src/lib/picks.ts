@@ -1,4 +1,5 @@
 import { estimateReadMinutes } from "@/lib/reading-time";
+import { isThinBookmark } from "@/lib/thin-bookmark";
 
 export type PickReason = "short" | "recent" | "stale";
 
@@ -66,7 +67,12 @@ export function selectDashboardPicks(
   bookmarks: ReadonlyArray<PickInput>,
   now: Date = new Date(),
 ): DashboardPick[] {
-  const candidates = bookmarks.filter((b) => !b.isArchived);
+  // Exclude archived AND "thin" bookmarks (twitter links, plain link
+  // saves with no body content + short description). They're third-class
+  // citizens for recommendations — see lib/thin-bookmark.ts.
+  const candidates = bookmarks.filter(
+    (b) => !b.isArchived && !isThinBookmark(b),
+  );
   if (candidates.length === 0) return [];
 
   const byShortest = [...candidates].sort(
