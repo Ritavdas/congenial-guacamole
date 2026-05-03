@@ -1,4 +1,8 @@
-import { getBookmarkById, getHighlights } from "@/lib/actions";
+import {
+  getBookmarkById,
+  getHighlights,
+  getTagsForBookmark,
+} from "@/lib/actions";
 import { notFound } from "next/navigation";
 import { ReaderView } from "@/components/bookmarks/reader-view";
 import { ReaderTelemetry } from "@/components/bookmarks/reader-telemetry";
@@ -15,12 +19,19 @@ export default async function ReadPage({ params }: ReadPageProps) {
     notFound();
   }
 
-  const bookmarkHighlights = await getHighlights(id);
+  const [bookmarkHighlights, bookmarkTags] = await Promise.all([
+    getHighlights(id),
+    getTagsForBookmark(id),
+  ]);
 
   return (
     <>
       <ReaderTelemetry bookmarkId={id} />
-      <ReaderView bookmark={bookmark} highlights={bookmarkHighlights} />
+      <ReaderView
+        bookmark={bookmark}
+        highlights={bookmarkHighlights}
+        tags={bookmarkTags}
+      />
     </>
   );
 }

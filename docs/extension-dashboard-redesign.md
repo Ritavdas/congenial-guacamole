@@ -3,11 +3,17 @@
 ## Context
 
 **Current pain points:**
+
 - Extension requires manual click to save → should auto-save on open
 - Dashboard has 7 sections of info overload (stats, AI recs, reading queue, recent, all bookmarks)
 - Real workflow: save → tag (e.g. "newsletter") → go to tag → batch-read
+- No dedicated dashboard tab to browse **all** my bookmarks in one place →
+  add an "All Bookmarks" tab that mirrors the search page UI (same card
+  layout, filters, density) but ordered chronologically (newest first) by
+  default, with no query required.
 
 **Extension redesign:**
+
 - Auto-save on popup open (new URL → save immediately)
 - Already-saved URL → show "Already in your library" + reader mode link
 - Tag selection is optional, shown after save confirms
@@ -290,15 +296,15 @@ INBOX: Items leave inbox once tagged OR archived
 
 ## Comparison Summary
 
-| Aspect             | A: Feed        | B: Tag-Centric  | C: Inbox         |
-|--------------------|----------------|-----------------|------------------|
-| Default view       | Timeline       | Tag grid        | Triage list      |
-| Complexity         | Lowest         | Medium          | Medium-High      |
-| Batch operations   | No             | No              | Yes              |
-| Tag visibility     | Inline chips   | Section headers | Sidebar + inline |
-| Newsletter workflow| Scroll to find | Land on bucket  | Select → batch tag|
-| Info density       | Low            | Medium          | High             |
-| Feels like...      | Twitter/RSS    | Trello/Notion   | Gmail/Superhuman |
+| Aspect              | A: Feed        | B: Tag-Centric  | C: Inbox           |
+| ------------------- | -------------- | --------------- | ------------------ |
+| Default view        | Timeline       | Tag grid        | Triage list        |
+| Complexity          | Lowest         | Medium          | Medium-High        |
+| Batch operations    | No             | No              | Yes                |
+| Tag visibility      | Inline chips   | Section headers | Sidebar + inline   |
+| Newsletter workflow | Scroll to find | Land on bucket  | Select → batch tag |
+| Info density        | Low            | Medium          | High               |
+| Feels like...       | Twitter/RSS    | Trello/Notion   | Gmail/Superhuman   |
 
 ---
 

@@ -41,10 +41,12 @@ import {
   DictionaryPopup,
 } from "@/components/reader/dictionary-popup";
 import { TextToSpeech } from "@/components/reader/text-to-speech";
+import { TagSelector } from "@/components/bookmarks/tag-selector";
 
 interface ReaderViewProps {
   bookmark: Bookmark;
   highlights: Highlight[];
+  tags: { id: string; name: string; color: string }[];
 }
 
 function estimateReadingTime(
@@ -55,7 +57,7 @@ function estimateReadingTime(
   return Math.max(1, Math.ceil(words / 200));
 }
 
-export function ReaderView({ bookmark, highlights }: ReaderViewProps) {
+export function ReaderView({ bookmark, highlights, tags }: ReaderViewProps) {
   const [summary, setSummary] = useState(bookmark.summary);
   const [summarizing, setSummarizing] = useState(false);
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
@@ -174,6 +176,7 @@ export function ReaderView({ bookmark, highlights }: ReaderViewProps) {
 
           <div className="flex items-center gap-1">
             <ReaderToolbar settings={settings} onUpdate={updateSettings} />
+            <TagSelector bookmarkId={bookmark.id} currentTags={tags} />
             <Button
               variant="ghost"
               size="icon"

@@ -27,6 +27,7 @@ import {
   BookOpen,
   MoreVertical,
   Check,
+  Tag as TagIcon,
 } from "lucide-react";
 import {
   toggleBookmarkFavorite,
@@ -46,6 +47,7 @@ interface BookmarkCardProps {
 export const BookmarkCard = memo(
   function BookmarkCard({ bookmark, onTagClick }: BookmarkCardProps) {
     const [cardTags, setCardTags] = useState(bookmark.tags);
+    const [tagPickerOpen, setTagPickerOpen] = useState(false);
 
     async function handleFavorite() {
       try {
@@ -136,6 +138,10 @@ export const BookmarkCard = memo(
                   <Check className="mr-2 h-4 w-4" />
                   Mark as {bookmark.isRead ? "unread" : "read"}
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTagPickerOpen(true)}>
+                  <TagIcon className="mr-2 h-4 w-4" />
+                  Edit tags
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleArchive}>
                   <Archive className="mr-2 h-4 w-4" />
                   {bookmark.isArchived ? "Unarchive" : "Archive"}
@@ -193,6 +199,8 @@ export const BookmarkCard = memo(
               bookmarkId={bookmark.id}
               currentTags={cardTags}
               onTagsChange={setCardTags}
+              open={tagPickerOpen}
+              onOpenChange={setTagPickerOpen}
             />
             <Button
               variant="ghost"

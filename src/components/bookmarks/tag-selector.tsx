@@ -23,16 +23,20 @@ interface TagSelectorProps {
   bookmarkId: string;
   currentTags: { id: string; name: string; color: string }[];
   onTagsChange?: (tags: { id: string; name: string; color: string }[]) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function TagSelector({
   bookmarkId,
   currentTags,
   onTagsChange,
+  open,
+  onOpenChange,
 }: TagSelectorProps) {
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
-    new Set(currentTags.map((t) => t.id))
+    new Set(currentTags.map((t) => t.id)),
   );
   const [newTagName, setNewTagName] = useState("");
   const [loading, setLoading] = useState(false);
@@ -63,9 +67,7 @@ export function TagSelector({
           next.delete(tag.id);
           return next;
         });
-        onTagsChange?.(
-          currentTags.filter((t) => t.id !== tag.id)
-        );
+        onTagsChange?.(currentTags.filter((t) => t.id !== tag.id));
       } else {
         await addTagToBookmark(bookmarkId, tag.id);
         setSelectedIds((prev) => new Set(prev).add(tag.id));
@@ -106,10 +108,21 @@ export function TagSelector({
   }
 
   return (
-    <Popover onOpenChange={(open) => open && loadTags()}>
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen, eventDetails) => {
+        if (nextOpen) loadTags();
+        onOpenChange?.(nextOpen);
+        void eventDetails;
+      }}
+    >
       <PopoverTrigger
         render={
-          <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1 px-2 text-xs"
+          />
         }
       >
         <TagIcon className="h-3 w-3" />
