@@ -49,8 +49,18 @@ const bookmarkLeanCols = {
   completionScore: bookmarks.completionScore,
 } as const;
 
-export type CountFilter = "all" | "favorites" | "archived" | "unread";
-export type BookmarkFilter = "all" | "favorites" | "archived" | "unread";
+export type CountFilter =
+  | "all"
+  | "favorites"
+  | "archived"
+  | "unread"
+  | "everything";
+export type BookmarkFilter =
+  | "all"
+  | "favorites"
+  | "archived"
+  | "unread"
+  | "everything";
 
 async function attachTagsToBookmarks<T extends { id: string }>(
   rows: T[],
@@ -102,6 +112,8 @@ export async function getBookmarksCached(
       break;
     case "unread":
       conditions.push(eq(bookmarks.isRead, false));
+      break;
+    case "everything":
       break;
     default:
       conditions.push(eq(bookmarks.isArchived, false));
@@ -173,6 +185,8 @@ export async function getBookmarksPaginatedCached(
       break;
     case "unread":
       conditions.push(eq(bookmarks.isRead, false));
+      break;
+    case "everything":
       break;
     default:
       conditions.push(eq(bookmarks.isArchived, false));
@@ -463,6 +477,8 @@ export async function getBookmarkCountCached(
       break;
     case "unread":
       conditions.push(eq(bookmarks.isRead, false));
+      break;
+    case "everything":
       break;
     default:
       conditions.push(eq(bookmarks.isArchived, false));
