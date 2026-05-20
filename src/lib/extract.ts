@@ -2,7 +2,29 @@ import { parseHTML } from "linkedom";
 import { Readability } from "@mozilla/readability";
 import { isTwitterStatusUrl, extractTwitterMetadata } from "./extract-twitter";
 import { isYouTubeUrl, extractYouTubeMetadata } from "./extract-youtube";
+import {
+  isMediumUrl,
+  extractMediumMetadata,
+  extractViaJinaReader,
+} from "./extract-medium";
 import { isAllowedUrl } from "./url-safety";
+
+// Pages whose <title> is exactly this are Cloudflare Turnstile challenges,
+// not real content. Saving "Just a moment..." as the bookmark title is a
+// silent failure that looks like the save worked.
+const CHALLENGE_TITLES = new Set([
+  "Just a moment...",
+  "Attention Required! | Cloudflare",
+]);
+
+function isCloudflareChallenge(
+  response: Response,
+  title: string | null,
+): boolean {
+  if (response.headers.get("cf-mitigated") === "challenge") return true;
+  if (title && CHALLENGE_TITLES.has(title.trim())) return true;
+  return false;
+}
 
 export interface ExtractedMetadata {
   title: string | null;
@@ -34,6 +56,13 @@ export async function extractMetadata(url: string): Promise<ExtractedMetadata> {
     if (youtubeData) return youtubeData;
   }
 
+  // Medium — Cloudflare Turnstile blocks every server-side fetch regardless
+  // of UA. Route through Jina Reader's browser engine instead.
+  if (isMediumUrl(url)) {
+    const mediumData = await extractMediumMetadata(url);
+    if (mediumData) return mediumData;
+  }
+
   try {
     const response = await fetch(url, {
       headers: {
@@ -52,6 +81,23 @@ export async function extractMetadata(url: string): Promise<ExtractedMetadata> {
       getMetaContent(doc, 'meta[name="title"]') ??
       doc.querySelector("title")?.textContent ??
       null;
+
+    // If we got a Cloudflare challenge (HTTP error or "Just a moment..."
+    // title), fall back to Jina Reader instead of poisoning the bookmark
+    // with the challenge page's metadata.
+    if (!response.ok || isCloudflareChallenge(response, title)) {
+      const jinaData = await extractViaJinaReader(url);
+      if (jinaData) return jinaData;
+      return {
+        title: null,
+        description: null,
+        ogImage: null,
+        domain,
+        content: null,
+        htmlContent: null,
+        wordCount: null,
+      };
+    }
 
     const description =
       getMetaContent(doc, 'meta[property="og:description"]') ??

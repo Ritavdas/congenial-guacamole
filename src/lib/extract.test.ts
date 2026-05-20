@@ -43,6 +43,9 @@ function makeHtml({
 
 function mockFetchHtml(html: string) {
   mockFetch.mockResolvedValue({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
     text: () => Promise.resolve(html),
   });
 }
