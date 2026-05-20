@@ -13,7 +13,7 @@ import {
   bookmarkCollections,
   highlights,
 } from "@/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import {
   revalidatePath,
   revalidateTag,
@@ -51,6 +51,41 @@ export async function addBookmark(url: string) {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
 
+  // Mirror the extension's normalization (case-insensitive, trailing-slash
+  // stripped) so the dialog and the extension agree on what counts as a
+  // duplicate.
+  const normalized = url.toLowerCase().replace(/\/+$/, "");
+  const [existing] = await db
+    .select({
+      id: bookmarks.id,
+      title: bookmarks.title,
+      domain: bookmarks.domain,
+      url: bookmarks.url,
+      ogImage: bookmarks.ogImage,
+      createdAt: bookmarks.createdAt,
+    })
+    .from(bookmarks)
+    .where(
+      and(
+        eq(bookmarks.userId, userId),
+        sql`lower(regexp_replace(${bookmarks.url}, '/+$', '')) = ${normalized}`,
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    const associatedTags = await db
+      .select({ id: tags.id, name: tags.name, color: tags.color })
+      .from(bookmarkTags)
+      .innerJoin(tags, eq(bookmarkTags.tagId, tags.id))
+      .where(eq(bookmarkTags.bookmarkId, existing.id));
+
+    return {
+      action: "existing" as const,
+      bookmark: { ...existing, tags: associatedTags },
+    };
+  }
+
   const metadata = await extractMetadata(url);
 
   const [bookmark] = await db
@@ -78,7 +113,18 @@ export async function addBookmark(url: string) {
 
   after(() => enqueueEmbedding(bookmark.id));
 
-  return bookmark;
+  return {
+    action: "created" as const,
+    bookmark: {
+      id: bookmark.id,
+      title: bookmark.title,
+      domain: bookmark.domain,
+      url: bookmark.url,
+      ogImage: bookmark.ogImage,
+      createdAt: bookmark.createdAt,
+      tags: [] as { id: string; name: string; color: string }[],
+    },
+  };
 }
 
 // Lean projection helpers now live in src/lib/cached.ts; list reads here
