@@ -9,7 +9,7 @@ import {
   Bookmark,
   Home,
   Archive,
-  Search,
+  Library,
   Layers,
   Trash2,
   Scale,
@@ -18,7 +18,7 @@ import { AddBookmarkDialog } from "@/components/bookmarks/add-bookmark-dialog";
 
 const navItems = [
   { href: "/", label: "Home", icon: Home },
-  { href: "/search", label: "Search", icon: Search },
+  { href: "/search", label: "Library", icon: Library },
   { href: "/archive", label: "Archive", icon: Archive },
   { href: "/clusters", label: "Topics", icon: Layers },
   { href: "/cull", label: "Cull", icon: Trash2 },
