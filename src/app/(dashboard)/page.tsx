@@ -45,7 +45,7 @@ function chipColor(score: number): string {
 
 const TABS: ReadonlyArray<{ label: string; href: string }> = [
   { label: "Picks", href: "/" },
-  { label: "Search", href: "/search" },
+  { label: "Library", href: "/search" },
   { label: "Archive", href: "/archive" },
 ];
 

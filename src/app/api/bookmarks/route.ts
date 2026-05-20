@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
       | "favorites"
       | "archived"
       | "unread"
+      | "everything"
       | undefined;
     const tagId = searchParams.get("tagId") ?? undefined;
     const cursor = searchParams.get("cursor") ?? undefined;

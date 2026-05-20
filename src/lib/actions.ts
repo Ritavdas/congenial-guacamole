@@ -131,7 +131,7 @@ export async function addBookmark(url: string) {
 // delegate to the *Cached helpers, so no local projection is needed.
 
 export async function getBookmarks(
-  filter?: "all" | "favorites" | "archived" | "unread",
+  filter?: "all" | "favorites" | "archived" | "unread" | "everything",
   tagId?: string,
 ) {
   const { userId } = await auth();
@@ -526,7 +526,7 @@ export async function getUnreadBookmarks(limit = 6) {
 }
 
 export async function getBookmarksPaginated(
-  filter?: "all" | "favorites" | "archived" | "unread",
+  filter?: "all" | "favorites" | "archived" | "unread" | "everything",
   tagId?: string,
   cursor?: string,
   limit: number = 20,
