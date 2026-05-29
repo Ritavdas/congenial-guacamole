@@ -271,6 +271,21 @@ export const bookmarkTopics = pgTable(
   ],
 );
 
+export const TWITTER_SYNC_STATUSES = ["ok", "auth_expired", "error"] as const;
+export type TwitterSyncStatusKind = (typeof TWITTER_SYNC_STATUSES)[number];
+
+export const twitterSyncStatus = pgTable("twitter_sync_status", {
+  userId: text("user_id").primaryKey(),
+  ranAt: timestamp("ran_at", { withTimezone: true }).notNull().defaultNow(),
+  status: text("status").$type<TwitterSyncStatusKind>().notNull(),
+  imported: integer("imported").notNull().default(0),
+  skipped: integer("skipped").notNull().default(0),
+  pagesFetched: integer("pages_fetched").notNull().default(0),
+  errorMessage: text("error_message"),
+});
+
+export type TwitterSyncStatus = typeof twitterSyncStatus.$inferSelect;
+
 export type TopicCluster = typeof topicClusters.$inferSelect;
 export type NewTopicCluster = typeof topicClusters.$inferInsert;
 export type BookmarkTopic = typeof bookmarkTopics.$inferSelect;

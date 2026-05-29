@@ -1,3 +1,14 @@
 {
-  "regions": ["bom1"]
+  "regions": ["bom1"],
+  "crons": [
+    {
+      "path": "/api/cron/sync-twitter-bookmarks",
+      "schedule": "0 3 * * *"
+    }
+  ],
+  "functions": {
+    "src/app/api/cron/sync-twitter-bookmarks/route.ts": {
+      "maxDuration": 300
+    }
+  }
 }

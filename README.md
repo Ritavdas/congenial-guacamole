@@ -115,6 +115,41 @@ A Chrome extension is included in `/extension`. To install:
 5. Click the extension icon, configure your app URL, API key, and Clerk user ID
 6. Save any page with one click!
 
+## Automated Twitter/X Bookmark Sync
+
+Two ways to get your X bookmarks into the app:
+
+**Manual export** — run the standalone exporter, then upload the JSON in the
+import UI:
+
+```bash
+export X_AUTH_TOKEN="<auth_token cookie>"   # DevTools → Application → Cookies → x.com
+export X_CSRF_TOKEN="<ct0 cookie>"
+python3 scripts/export_bookmarks.py          # writes bookmarks_export/*.json
+```
+
+**Automated daily sync (Vercel Cron)** — a scheduled job fetches new bookmarks
+server-side and ingests them automatically (incremental: it stops as soon as it
+hits already-saved tweets, so daily runs are fast).
+
+1. Set these env vars in Vercel (and `.env.local` for local testing):
+   - `CRON_SECRET` — random secret; Vercel sends it as `Authorization: Bearer …`
+   - `SYNC_USER_ID` — your Clerk user id (e.g. `user_xxx`) to attach bookmarks to
+   - `X_AUTH_TOKEN` / `X_CSRF_TOKEN` — your `auth_token` / `ct0` cookies from x.com
+2. The schedule lives in `vercel.json` (`0 3 * * *` = daily at 03:00 UTC).
+3. Endpoint: `GET /api/cron/sync-twitter-bookmarks` (self-protected by `CRON_SECRET`).
+
+Test it locally:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  http://localhost:3000/api/cron/sync-twitter-bookmarks
+```
+
+> **Cookie refresh:** X session cookies expire eventually. When they do, the
+> run returns HTTP 401 with a clear message — just re-copy fresh `auth_token`
+> and `ct0` values into the env vars.
+
 ## License
 
 MIT

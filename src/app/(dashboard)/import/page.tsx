@@ -1,6 +1,7 @@
 import { PocketImport } from "@/components/import/pocket-import";
 import { TwitterImport } from "@/components/import/twitter-import";
 import { TwitterBookmarksImport } from "@/components/import/twitter-bookmarks-import";
+import { TwitterSyncStatusBanner } from "@/components/import/twitter-sync-status-banner";
 
 export default function ImportPage() {
   return (
@@ -11,6 +12,8 @@ export default function ImportPage() {
           Bring your saved articles from other services into Pockaa.
         </p>
       </div>
+
+      <TwitterSyncStatusBanner />
 
       <div className="grid gap-6 md:grid-cols-2">
         <PocketImport />
